@@ -1,45 +1,57 @@
 //Taken from https://devblogs.nvidia.com/parallelforall/even-easier-introduction-cuda/
 
+#include "cuda_runtime.h"
+#include "device_launch_parameters.h"
 #include <iostream>
 #include <math.h>
-// Kernel function to add the elements of two arrays
+
+// CUDA Kernal function to add the elements of two arrays on the GPU
 __global__
-void add(int n, float *x, float *y)
+void add(int n, double *x, double *y)
 {
-  for (int i = 0; i < n; i++)
-    y[i] = x[i] + y[i];
+	int index = threadIdx.x + blockDim.x * blockIdx.x;
+	int stride = blockDim.x * gridDim.x;
+	for (int i = index; i < n; i+=stride)
+		y[i] = x[i] + y[i];
 }
 
 int main(void)
 {
-  int N = 1<<20;
-  float *x, *y;
+	cudaEvent_t start, stop;
+	int N = 1 << 24; // 1M elements
+	cudaEventCreate(&start);
+	cudaEventCreate(&stop);
+	double *x; //= new float[N];
+	double *y; //= new float[N];
+	cudaEventRecord(start);
+	cudaMallocManaged(&x, N * sizeof(double));
+	cudaMallocManaged(&y, N * sizeof(double));
 
-  // Allocate Unified Memory – accessible from CPU or GPU
-  cudaMallocManaged(&x, N*sizeof(float));
-  cudaMallocManaged(&y, N*sizeof(float));
+	// initialize x and y arrays on the host
+	for (int i = 0; i < N; i++) {
+		x[i] = 1.0f;
+		y[i] = 2.0f;
+	}
+	int threadBlockSize = 128;
+	int numThreadBlocks = (N+threadBlockSize-1)/threadBlockSize;
+	// Run kernel on 1M elements on the CPU
+	add<<<numThreadBlocks, threadBlockSize >>>(N, x, y);
+	cudaEventRecord(stop);
 
-  // initialize x and y arrays on the host
-  for (int i = 0; i < N; i++) {
-    x[i] = 1.0f;
-    y[i] = 2.0f;
-  }
+	cudaEventSynchronize(stop);
+	float elapsedTime;
+	cudaEventElapsedTime(&elapsedTime, start, stop);
+	// Check for errors (all values should be 3.0f)
+	double maxError = 0.0f;
+	for (int i = 0; i < N; i++)
+	maxError = fmax(maxError, fabs(y[i] - 3.0f));
+	std::cout << "max error: " << maxError << "\nTime used (ms): " << elapsedTime << std::endl;
 
-  // Run kernel on 1M elements on the GPU
-  add<<<1, 1>>>(N, x, y);
+	// Free memory
+	//delete[] x;
+	//delete[] y;
+	cudaFree(x);
+	cudaFree(y);
 
-  // Wait for GPU to finish before accessing on host
-  cudaDeviceSynchronize();
-
-  // Check for errors (all values should be 3.0f)
-  float maxError = 0.0f;
-  for (int i = 0; i < N; i++)
-    maxError = fmax(maxError, fabs(y[i]-3.0f));
-  std::cout << "Max error: " << maxError << std::endl;
-
-  // Free memory
-  cudaFree(x);
-  cudaFree(y);
-  
-  return 0;
+	return 0;
 }
