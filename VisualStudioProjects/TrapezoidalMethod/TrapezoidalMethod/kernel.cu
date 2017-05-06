@@ -13,10 +13,15 @@ double f(double x) {
 __global__
 void trap(int a, int n, double h, double* sum) {
 	double x_i;
+	__shared__ double result;
+	result = 0;
+	__syncthreads();
 	for (int i = 1; i < n; i++) {
 		x_i = a + i*h;
-		*sum += f(x_i);
+		result += f(x_i);
 	}
+	__syncthreads();
+	*sum = result;
 }
 
 cudaError_t trapezoidalMethod(double start, double end, int subdivisions, double *out) {
@@ -29,9 +34,10 @@ cudaError_t trapezoidalMethod(double start, double end, int subdivisions, double
 	else {
 		// Launch a kernel on the GPU with one thread for each element.
 		double  h = (end - start) / (double)subdivisions;
-		double sum = 0.0;
-		sum += (f(start) + f(end)) / 2.0;
-		trap << <1, 1 >> > (start, subdivisions, h, &sum);
+		double *ourSum;
+		cudaMalloc(&ourSum, sizeof(double));
+		*ourSum = (f(start) + f(end)) / 2.0;
+		trap << <1, 1 >> > (start, subdivisions, h, ourSum);
 
 		// Check for any errors launching the kernel
 		cudaStatus = cudaGetLastError();
@@ -42,7 +48,8 @@ cudaError_t trapezoidalMethod(double start, double end, int subdivisions, double
 			// cudaDeviceSynchronize waits for the kernel to finish, and returns
 			// any errors encountered during the launch.
 			cudaStatus = cudaDeviceSynchronize();
-			sum *= h;
+			*out = *ourSum * h;
+			cudaFree(ourSum);
 			if (cudaStatus != cudaSuccess) {
 				fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching Trapezoidal!\n", cudaStatus);
 			}
