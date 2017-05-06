@@ -1,3 +1,5 @@
+#include "cuda_runtime.h"
+#include "device_launch_parameters.h"
 #include <iostream>
 #include <math.h>
 // Kernel function to calculate trapizoidal sum
