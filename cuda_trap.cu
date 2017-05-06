@@ -19,7 +19,7 @@ int main(void){
   double *sum = 0.0;
   *sum += (f(a) + f(b))/2.0;
   
-  trap<<<1, 1>>>(N, x, y);
+  trap<<<1, 1>>>(a, h, *sum);
 
   cudaDeviceSynchronize();
   
