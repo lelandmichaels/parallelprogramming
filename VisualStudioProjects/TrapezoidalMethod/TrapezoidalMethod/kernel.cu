@@ -1,29 +1,33 @@
-#include "cuda_runtime.h"
-#include "device_launch_parameters.h"
 #include <iostream>
 #include <math.h>
-// Kernel function to calculate trapizoidal sum
-__global__ void trap(int a, float h, double* sum) {
-	for (int i = 1; i<n; i++) {
-		double x_i = (double)a + i*h;
-		*sum += f(x_i);
-	}
+
+double f(double x){
+  return x*x;
 }
 
-int main(void) {
+// Kernel function to calculate trapizoidal sum
+__global__
+void trap(int a, float h, double* sum){
+  for(int i = 1; i<n; i++){
+    double x_i = (double)a+i*h;
+    *sum += f(x_i); 
+  }
+}
 
-	int a = 1;
-	int b = 2;
-	int n = 100;
-	double  h = (b - a) / (double)n;
-	double *sum = 0.0;
-	*sum += (f(a) + f(b)) / 2.0;
+int main(void){
 
-	trap << <1, 1 >> >(a, h, *sum);
+  int a = 1;
+  int b = 2;
+  int n = 100;
+  double  h = (b-a)/(double)n;
+  double *sum = 0.0;
+  *sum += (f(a) + f(b))/2.0;
+  
+  trap<<<1, 1>>>(a, h, *sum);
 
-	cudaDeviceSynchronize();
-
-	*sum = h*sum;
-	printf("%f\n", sum);
-	return 0;
+  cudaDeviceSynchronize();
+  
+  *sum = h*sum;
+  printf("%f\n", sum);
+  return 0;
 }
