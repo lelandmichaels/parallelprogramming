@@ -1,13 +1,12 @@
 #include <iostream>
 #include <math.h>
-
+// Kernel function to calculate trapizoidal sum
 double f(double x){
   return x*x;
 }
 
-// Kernel function to calculate trapizoidal sum
 __global__
-void trap(int a, float h, double* sum){
+void trap(int a, int n, float h, double* sum){
   for(int i = 1; i<n; i++){
     double x_i = (double)a+i*h;
     *sum += f(x_i); 
@@ -23,7 +22,7 @@ int main(void){
   double *sum = 0.0;
   *sum += (f(a) + f(b))/2.0;
   
-  trap<<<1, 1>>>(a, h, *sum);
+  trap<<<1, 1>>>(a, n, h, *sum);
 
   cudaDeviceSynchronize();
   
