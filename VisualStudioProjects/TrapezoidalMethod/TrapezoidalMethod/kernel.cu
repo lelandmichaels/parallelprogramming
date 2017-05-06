@@ -3,6 +3,8 @@
 #include <iostream>
 #include <math.h>
 // Kernel function to calculate trapizoidal sum
+__host__
+__device__
 double f(double x){
   return x*x;
 }
@@ -21,14 +23,14 @@ int main(void){
   int b = 2;
   int n = 100;
   double  h = (b-a)/(double)n;
-  double *sum = 0.0;
-  *sum += (f(a) + f(b))/2.0;
+  double sum = 0.0;
+  sum += (f(a) + f(b))/2.0;
   
-  trap<<<1, 1>>>(a, n, h, *sum);
+  trap<<<1, 1>>>(a, n, h, &sum);
 
   cudaDeviceSynchronize();
   
-  *sum = h*sum;
+  sum = h*sum;
   printf("%f\n", sum);
   return 0;
 }
