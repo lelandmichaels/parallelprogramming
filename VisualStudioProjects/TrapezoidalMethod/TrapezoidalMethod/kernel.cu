@@ -18,7 +18,12 @@ void trap(int a, int n, double h, double* sum) {
 	__syncthreads();
 	for (int i = 1; i < n; i++) {
 		x_i = a + i*h;
+<<<<<<< HEAD
 		result += f(x_i);
+=======
+		__syncthreads();
+		*sum += f(x_i);
+>>>>>>> origin/master
 	}
 	__syncthreads();
 	*sum = result;
