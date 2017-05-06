@@ -1,8 +1,9 @@
+#include "cuda_runtime.h"
+#include "device_launch_parameters.h"
 #include <iostream>
 #include <math.h>
 // Kernel function to calculate trapizoidal sum
-__global__
-void trap(int a, float h, double* sum){
+__global__ void trap(int a, float h, double* sum){
   for(int i = 1; i<n; i++){
     double x_i = (double)a+i*h;
     *sum += f(x_i); 
