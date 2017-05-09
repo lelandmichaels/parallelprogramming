@@ -9,17 +9,13 @@
 #define TIMING
 #define N 5000
 
-#ifdef TIMING
-double avgCPUTime, avgGPUTime;
-double cpuStartTime, cpuEndTime;
-#endif 
 
 __global__ void monteCarlo(unsigned  int n, unsigned int* inCirc_d, curandState_t* states, unsigned int seed)
 {
 	unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
-	
+
 	if (index < n) {
-		
+
 		double x, y;
 
 		curand_init(seed, index, 0, &states[index]);
@@ -52,28 +48,25 @@ int main()
 	creates cuda rand states and mallocs space for them, each state is thread safe
 	*/
 
-	#ifdef TIMING
-		avgCPUTime = 0;
-		avgGPUTime = 0;
-	#endif // TIMING
-	
+
 	int blockSize = 512;
 	int numBlocks = (N + blockSize - 1) / blockSize;
 
 	curandState_t* states;
 	cudaMalloc((void**)&states, blockSize*numBlocks * sizeof(curandState_t));
-	
+
 	unsigned int total = 0;
 	unsigned int* inCirc_d;
 	unsigned int* inCirc = (unsigned int*)malloc(blockSize*numBlocks * sizeof(unsigned int));
-	
-	cudaMalloc((void**)&inCirc_d, blockSize*numBlocks*sizeof(int));
+
+
+	cudaMalloc((void**)&inCirc_d, blockSize*numBlocks * sizeof(int));
 	cudaMemset(inCirc_d, 0, blockSize*numBlocks * sizeof(int));
 	//CUDAErrorCheck();
 	double cpu_estimate;
-	
-	monteCarlo <<<numBlocks, blockSize >>> (N, inCirc_d, states, time(0));
-	
+
+	monteCarlo << <numBlocks, blockSize >> > (N, inCirc_d, states, time(0));
+
 	cudaDeviceSynchronize();
 	//CUDAErrorCheck();
 
@@ -84,13 +77,14 @@ int main()
 		total += inCirc[i];
 	}
 
+
 	double pi_estimate = 4 * total / (double)N;
-	
-	printf("Total in Circle = %d\nEstimate of Pi = %.4f\n", total,pi_estimate);
+
+	printf("Total in Circle = %d\nEstimate of Pi = %.4f\n", total, pi_estimate);
 
 	cudaFree(states);
 	cudaFree(inCirc_d);
 
 
-    return 0;
+	return 0;
 }

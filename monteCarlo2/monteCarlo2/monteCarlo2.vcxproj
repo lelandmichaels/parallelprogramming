@@ -19,8 +19,8 @@
     </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{CE464F58-559A-4CF4-8059-A05E27E4D743}</ProjectGuid>
-    <RootNamespace>monteCarlo</RootNamespace>
+    <ProjectGuid>{239F1016-33D6-4670-9D91-59EF51A296FC}</ProjectGuid>
+    <RootNamespace>monteCarlo2</RootNamespace>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
