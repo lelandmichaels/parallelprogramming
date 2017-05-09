@@ -2,6 +2,9 @@
 #include "device_launch_parameters.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <omp.h>
+
+#define TIMING
 
 cudaError_t sumArray(long long *arr, int size, long long *out, int threadsPerBlock);
 
@@ -9,7 +12,6 @@ __global__ void sumKernel(long long *arr, int size)
 {
 	int i = threadIdx.x + blockDim.x*blockIdx.x;
 	if (i < size) {
-		//printf("Adding arr[%d]=%d and arr[%d]=%d\n", i, arr[i], i + size, arr[i + size]);
 		arr[i] += arr[i + size];
 		arr[i + size] = 0;
 	}
@@ -17,21 +19,31 @@ __global__ void sumKernel(long long *arr, int size)
 
 int main()
 {
-	const int arraySize = 3000;
-	long long a[arraySize];// = { 1, 2, 3, 4, 5,15 };
+	int arraySize = 1000000;
+	long long *a = (long long*)malloc(arraySize * sizeof(long long));
 	long long sum = 0;
+#ifdef TIMING
+	double startTime = omp_get_wtime(), endTime;
+#endif // TIMING
 	for (int i = 0; i < arraySize; i++) {
 		a[i] = rand();
 		sum += a[i];
-		//printf("i:%d\tsum so far:%d\n", i, sum);
 	}
-	printf("Actual sum: %lld\n", sum);
+#ifdef TIMING
+	endTime = omp_get_wtime();
+	double timeUsed = endTime - startTime;
+#endif // TIMING
+	printf("Actual sum: %lld.\n", sum);
+#ifdef TIMING
+	printf("CPU Calculated in %lf ms.\n", timeUsed*1000);
+#endif // TIMING
 	// Add vectors in parallel.
-	cudaError_t cudaStatus = sumArray(a, arraySize, &sum, 128);
+	cudaError_t cudaStatus = sumArray(a, arraySize, &sum, 256);
 	if (cudaStatus != cudaSuccess) {
 		fprintf(stderr, "CUDA Sum Array failed!");
 		return 1;
 	}
+	printf("Cuda sum: %lld.\n", sum);
 
 	// cudaDeviceReset must be called before exiting in order for profiling and
 	// tracing tools such as Nsight and Visual Profiler to show complete traces.
@@ -46,7 +58,13 @@ int main()
 
 
 cudaError_t sumArray(long long *arr, int size, long long *out, int threadsPerBlock) {
-
+#ifdef TIMING
+	cudaEvent_t start, end;
+	cudaEventCreate(&start);
+	cudaEventCreate(&end);
+	double totalGpuTimeUsed = 0;
+	float gpuTimeUsed;
+#endif // TIMING
 	cudaError_t cudaStatus;
 	// Choose which GPU to run on, change this on a multi-GPU system.
 	cudaStatus = cudaSetDevice(0);
@@ -69,8 +87,12 @@ cudaError_t sumArray(long long *arr, int size, long long *out, int threadsPerBlo
 		cudaStatus = cudaDeviceSynchronize();
 		//keep reducing the problem size by two
 		while (adjustedSize > 1) {
+#ifdef TIMING
+			cudaEventRecord(start);
+			cudaEventSynchronize(start);
+#endif // TIMING
 			adjustedSize /= 2;
-			if (adjustedSize % 2 != 0 && adjustedSize>1) {
+			if (adjustedSize % 2 != 0 && adjustedSize > 1) {
 				adjustedSize++;
 			}
 			if (adjustedSize < threadsPerBlock) {
@@ -100,8 +122,17 @@ cudaError_t sumArray(long long *arr, int size, long long *out, int threadsPerBlo
 				}
 				cudaMemcpy(out, gpuArray, sizeof(long long), cudaMemcpyDeviceToHost);
 			}
+#ifdef TIMING
+			cudaEventRecord(end);
+			cudaEventSynchronize(end);
+			cudaEventElapsedTime(&gpuTimeUsed, start, end);
+			totalGpuTimeUsed += gpuTimeUsed;
+#endif // TIMING
 		}
-		printf("PartialResult:%lld\n", *out);
+#ifdef TIMING
+		printf("GPU Calculated in %lf ms.\n", totalGpuTimeUsed);
+#endif // TIMING
+
 		cudaFree(gpuArray);
 	}
 	return cudaStatus;
