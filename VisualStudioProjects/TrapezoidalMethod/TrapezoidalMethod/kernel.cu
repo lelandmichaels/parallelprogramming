@@ -13,15 +13,13 @@ double f(double x) {
 __global__
 void trap(int a, int n, double h, double* sum) {
 	double x_i;
-	__shared__ double result;
+	__shared__ double result[1];
 	result = 0;
-	__syncthreads();
 	for (int i = 1; i < n; i++) {
 		x_i = a + i*h;
-		result += f(x_i);
+		result[0] += f(x_i);
 	}
-	__syncthreads();
-	*sum = result;
+	*sum = result[0];
 }
 
 cudaError_t trapezoidalMethod(double start, double end, int subdivisions, double *out) {
@@ -38,7 +36,7 @@ cudaError_t trapezoidalMethod(double start, double end, int subdivisions, double
 		cudaMalloc(&ourSum, sizeof(double));
 		*ourSum = (f(start) + f(end)) / 2.0;
 		trap << <1, 1 >> > (start, subdivisions, h, ourSum);
-
+		printf("ourSum %f", ourSum);
 		// Check for any errors launching the kernel
 		cudaStatus = cudaGetLastError();
 		if (cudaStatus != cudaSuccess) {
