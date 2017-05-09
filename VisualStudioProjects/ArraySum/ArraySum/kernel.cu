@@ -4,11 +4,11 @@
 #include <stdlib.h>
 #include <omp.h>
 
-#define NUM_THREADS 4
+#define NUM_THREADS 8
 #define TIMING
 #define MIN_SIZE 250000
 #define SIZE_INCREMENT 250000
-#define MAX_SIZE 10000000
+#define MAX_SIZE 100000000
 #define SAMPLE_SIZE 50
 
 #ifdef TIMING
@@ -41,7 +41,8 @@ int main()
 		avgGPUTime = 0;
 #endif // TIMING
 #pragma omp parallel for num_threads(NUM_THREADS) \
-reduction(+:avgGPUTime,avgCPUTime)
+reduction(+:avgGPUTime,avgCPUTime,timesCorrect,timesWrong) \
+private(cpuStartTime,cpuEndTime)
 		for (int sample = 0; sample < SAMPLE_SIZE; sample++) {
 			long long sum = 0, cudaSum;
 #ifdef TIMING
@@ -91,8 +92,8 @@ cudaError_t sumArray(long long *arr, int size, long long *out, int threadsPerBlo
 	double totalGpuTimeUsed = 0;
 	float gpuTimeUsed;
 	cudaEvent_t startStep, endStep;
-	cudaEventCreateWithFlags(&startStep,cudaEventBlockingSync);
-	cudaEventCreateWithFlags(&endStep,cudaEventBlockingSync);
+	cudaEventCreateWithFlags(&startStep, cudaEventDefault);//cudaEventBlockingSync);
+	cudaEventCreateWithFlags(&endStep, cudaEventDefault);// cudaEventBlockingSync);
 #endif // TIMING
 	cudaError_t cudaStatus;
 	// Choose which GPU to run on, change this on a multi-GPU system.
