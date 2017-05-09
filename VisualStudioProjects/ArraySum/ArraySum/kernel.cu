@@ -4,11 +4,12 @@
 #include <stdlib.h>
 #include <omp.h>
 
+#define NUM_THREADS 4
 #define TIMING
 #define MIN_SIZE 250000
 #define SIZE_INCREMENT 250000
-#define MAX_SIZE 100000000
-#define SAMPLE_SIZE 100
+#define MAX_SIZE 10000000
+#define SAMPLE_SIZE 50
 
 #ifdef TIMING
 double avgCPUTime, avgGPUTime;
@@ -39,13 +40,13 @@ int main()
 		avgCPUTime = 0;
 		avgGPUTime = 0;
 #endif // TIMING
+#pragma omp parallel for num_threads(NUM_THREADS) \
+reduction(+:avgGPUTime,avgCPUTime)
 		for (int sample = 0; sample < SAMPLE_SIZE; sample++) {
 			long long sum = 0, cudaSum;
 #ifdef TIMING
 			cpuStartTime = omp_get_wtime();
 #endif // TIMING
-#pragma omp parallel for num_threads(4) \
-reduction(+:sum)
 			for (int i = 0; i < arraySize; i++) {
 				sum += a[i];
 			}
@@ -90,8 +91,8 @@ cudaError_t sumArray(long long *arr, int size, long long *out, int threadsPerBlo
 	double totalGpuTimeUsed = 0;
 	float gpuTimeUsed;
 	cudaEvent_t startStep, endStep;
-	cudaEventCreate(&startStep);
-	cudaEventCreate(&endStep);
+	cudaEventCreateWithFlags(&startStep,cudaEventBlockingSync);
+	cudaEventCreateWithFlags(&endStep,cudaEventBlockingSync);
 #endif // TIMING
 	cudaError_t cudaStatus;
 	// Choose which GPU to run on, change this on a multi-GPU system.
@@ -100,6 +101,8 @@ cudaError_t sumArray(long long *arr, int size, long long *out, int threadsPerBlo
 		fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
 	}
 	else {
+		cudaStream_t myStream;
+		cudaStreamCreateWithFlags(&myStream, cudaStreamNonBlocking);
 		//adjust size so it is even
 		int adjustedSize = size + size % 2;
 		//determine number of thread blocks required
@@ -117,17 +120,18 @@ cudaError_t sumArray(long long *arr, int size, long long *out, int threadsPerBlo
 		//create array for sum reduction on gpu
 		long long *gpuArray;
 		cudaMalloc((void **)&gpuArray, adjustedSize * sizeof(long long));
-		cudaStatus = cudaDeviceSynchronize();
-		cudaMemset((void*)gpuArray, 0, adjustedSize * sizeof(long long));
-		cudaStatus = cudaDeviceSynchronize();
+		cudaStatus = cudaStreamSynchronize(myStream);
+		cudaMemsetAsync((void*)gpuArray, 0, adjustedSize * sizeof(long long),myStream);
+		cudaStatus = cudaStreamSynchronize(myStream);
 		//copy input data to gpu
-		cudaMemcpy(gpuArray, arr, size * sizeof(long long), cudaMemcpyHostToDevice);
-		cudaStatus = cudaDeviceSynchronize();
+		cudaMemcpyAsync(gpuArray, arr, size * sizeof(long long), cudaMemcpyHostToDevice,myStream);
+		cudaStatus = cudaStreamSynchronize(myStream);
 		//keep reducing the problem size by two
 		while (adjustedSize > 1) {
 #ifdef TIMING
-			cudaEventRecord(startStep);
-			cudaEventSynchronize(startStep);
+			cudaEventRecord(startStep,myStream);
+			cudaStreamSynchronize(myStream);
+			//cudaStreamWaitEvent(myStream, startStep, 0);
 #endif // TIMING
 			adjustedSize /= 2;
 			if (adjustedSize % 2 != 0 && adjustedSize > 1) {
@@ -142,7 +146,7 @@ cudaError_t sumArray(long long *arr, int size, long long *out, int threadsPerBlo
 			numThreadBlocks = (adjustedSize + threadsPerBlock - 1) / threadsPerBlock;
 			//printf("Adjusted size:%d\tThreadBlocks:%d\tThreadsPerBlock:%d\n", adjustedSize, numThreadBlocks,threadsPerBlock);
 			// Launch a kernel on the GPU with one thread for each pair of elements.
-			sumKernel << <numThreadBlocks, threadsPerBlock >> > (gpuArray, adjustedSize);
+			sumKernel << <numThreadBlocks, threadsPerBlock,0, myStream >> > (gpuArray, adjustedSize);
 
 			// Check for any errors launching the kernel
 			cudaStatus = cudaGetLastError();
@@ -153,16 +157,17 @@ cudaError_t sumArray(long long *arr, int size, long long *out, int threadsPerBlo
 			else {
 				// cudaDeviceSynchronize waits for the kernel to finish, and returns
 				// any errors encountered during the launch.
-				cudaStatus = cudaDeviceSynchronize();
+				cudaStreamSynchronize(myStream);
 				if (cudaStatus != cudaSuccess) {
 					fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
 					break;
 				}
-				cudaMemcpy(out, gpuArray, sizeof(long long), cudaMemcpyDeviceToHost);
+				cudaMemcpyAsync(out, gpuArray, sizeof(long long), cudaMemcpyDeviceToHost,myStream);
 			}
 #ifdef TIMING
-			cudaEventRecord(endStep);
-			cudaEventSynchronize(endStep);
+			cudaEventRecord(endStep,myStream);
+			cudaStreamSynchronize(myStream);
+			//cudaStreamWaitEvent(myStream,endStep,0);
 			cudaEventElapsedTime(&gpuTimeUsed, startStep, endStep);
 			totalGpuTimeUsed += gpuTimeUsed;
 #endif // TIMING
@@ -170,7 +175,7 @@ cudaError_t sumArray(long long *arr, int size, long long *out, int threadsPerBlo
 #ifdef TIMING
 		avgGPUTime += totalGpuTimeUsed;
 #endif // TIMING
-
+		cudaStreamDestroy(myStream);
 		cudaFree(gpuArray);
 	}
 	return cudaStatus;
