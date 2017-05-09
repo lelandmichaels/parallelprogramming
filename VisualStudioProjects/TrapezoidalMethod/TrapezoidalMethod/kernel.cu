@@ -5,6 +5,10 @@
 #include <cstdlib>
 
 #define TIMING
+#define MIN_SIZE 250000
+#define SIZE_INCREMENT 250000
+#define MAX_SIZE 100000000
+#define SAMPLE_SIZE 500
 
 #ifdef TIMING
 double avgCPUTime, avgGPUTime;
@@ -24,7 +28,7 @@ void trap(int a, int n, double h, double* sum) {
 	double x_i;
 	int id = blockDim.x*blockIdx.x + threadIdx.x;
 	int stride = blockDim.x*gridDim.x;
-	for (int i = id; i < n; i += stride) {
+	for (int i = id+1; i < n; i += stride) {
 		x_i = a + i*h;
 		sum[id] += f(x_i);
 	}
@@ -67,7 +71,7 @@ cudaError_t trapezoidalMethod(double start, double end, int subdivisions, double
 		double *gpuSum, cpuSum;
 		cudaMalloc(&gpuSum, sizeof(double)*blockCount*blockSize);
 		cudaStreamSynchronize(myStream);
-		trap<<<blockCount, blockSize, 0, myStream >>>(start, subdivisions, h, gpuSum);
+		trap << <blockCount, blockSize, 0, myStream >> > (start, subdivisions, h, gpuSum);
 		cudaStreamSynchronize(myStream);
 		cudaStatus = cudaGetLastError();
 		if (cudaStatus != cudaSuccess) {
@@ -82,8 +86,7 @@ cudaError_t trapezoidalMethod(double start, double end, int subdivisions, double
 			else {
 				// cudaDeviceSynchronize waits for the kernel to finish, and returns
 				// any errors encountered during the launch.
-				cudaMemcpyAsync(&cpuSum, gpuSum, sizeof(double), cudaMemcpyDeviceToHost, myStream);
-				cudaStatus = cudaStreamSynchronize(myStream);
+				cudaStreamSynchronize(myStream);
 				cudaFree(gpuSum);
 				if (cudaStatus != cudaSuccess) {
 					fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching Trapezoidal!\n", cudaStatus);
@@ -115,14 +118,20 @@ int main(void) {
 	int b = 2;
 	int n = 100;
 	double sum = 0.0;
-	cudaError_t trapezoidalLaunch = trapezoidalMethod(a, b, n, &sum, 5, 256);
-	if (trapezoidalLaunch == cudaSuccess) {
-		printf("%lf\n", sum);
+	for (int i = 0; i < SAMPLE_SIZE; i++) {
+		cudaError_t trapezoidalLaunch = trapezoidalMethod(a, b, n, &sum, 1, 1);
+		if (trapezoidalLaunch == cudaSuccess) {
+			//printf("%lf\n", sum);
+		}
+		else {
+			printf("There was an error runnning the operation.\n");
+			printf("Error code: %d\n", trapezoidalLaunch);
+		}
 	}
-	else {
-		printf("There was an error runnning the operation.\n");
-		printf("Error code: %d\n", trapezoidalLaunch);
-	}
+	printf("%lf\n", sum);
+#ifdef TIMING
+	printf("%d\t%lf\t%lf\n", n, avgCPUTime / SAMPLE_SIZE, avgGPUTime / SAMPLE_SIZE);
+#endif // TIMING
 	return 0;
 }
 
@@ -150,7 +159,7 @@ cudaError_t sumArray(double *arr, int size, double *out, int threadsPerBlock, bo
 		int numThreadBlocks = numThreadBlocks = (adjustedSize + threadsPerBlock - 1) / threadsPerBlock;
 		if (numThreadBlocks > 65535) {
 			double part1, part2;
-			sumArray(arr, size / 2, &part1, threadsPerBlock,arrayAlreadyOnGPU);
+			sumArray(arr, size / 2, &part1, threadsPerBlock, arrayAlreadyOnGPU);
 			sumArray(&arr[size / 2], size / 2, &part2, threadsPerBlock, arrayAlreadyOnGPU);
 			cudaStatus = cudaGetLastError();
 			if (cudaStatus == cudaSuccess) {
