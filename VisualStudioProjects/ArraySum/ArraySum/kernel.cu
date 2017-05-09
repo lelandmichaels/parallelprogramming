@@ -5,17 +5,17 @@
 #include <omp.h>
 
 #define TIMING
-#define MIN_SIZE 1000000
-#define SIZE_INCREMENT 500000
-#define MAX_SIZE 10000000
-#define SAMPLE_SIZE 10
-
-cudaError_t sumArray(long long *arr, int size, long long *out, int threadsPerBlock);
+#define MIN_SIZE 250000
+#define SIZE_INCREMENT 250000
+#define MAX_SIZE 100000000
+#define SAMPLE_SIZE 100
 
 #ifdef TIMING
 double avgCPUTime, avgGPUTime;
 double cpuStartTime, cpuEndTime;
 #endif // TIMING
+
+cudaError_t sumArray(long long *arr, int size, long long *out, int threadsPerBlock);
 
 __global__ void sumKernel(long long *arr, int size)
 {
@@ -44,9 +44,9 @@ int main()
 #ifdef TIMING
 			cpuStartTime = omp_get_wtime();
 #endif // TIMING
-#pragma omp parallel for num_threads(4)
+#pragma omp parallel for num_threads(4) \
+reduction(+:sum)
 			for (int i = 0; i < arraySize; i++) {
-				a[i] = rand();
 				sum += a[i];
 			}
 #ifdef TIMING
@@ -100,12 +100,22 @@ cudaError_t sumArray(long long *arr, int size, long long *out, int threadsPerBlo
 		fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
 	}
 	else {
-		//determine number of thread blocks required
-		int numThreadBlocks;
-		//create array for sum reduction on gpu
-		long long *gpuArray;
 		//adjust size so it is even
 		int adjustedSize = size + size % 2;
+		//determine number of thread blocks required
+		int numThreadBlocks = numThreadBlocks = (adjustedSize + threadsPerBlock - 1) / threadsPerBlock;
+		if (numThreadBlocks > 65535) {
+			long long part1, part2;
+			sumArray(arr, size / 2, &part1, threadsPerBlock);
+			sumArray(&arr[size / 2], size / 2, &part2, threadsPerBlock);
+			cudaStatus = cudaGetLastError();
+			if (cudaStatus == cudaSuccess) {
+				*out = part1 + part2;
+			}
+			return cudaStatus;
+		}
+		//create array for sum reduction on gpu
+		long long *gpuArray;
 		cudaMalloc((void **)&gpuArray, adjustedSize * sizeof(long long));
 		cudaStatus = cudaDeviceSynchronize();
 		cudaMemset((void*)gpuArray, 0, adjustedSize * sizeof(long long));
