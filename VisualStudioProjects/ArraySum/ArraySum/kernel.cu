@@ -132,7 +132,6 @@ cudaError_t sumArray(long long *arr, int size, long long *out, int threadsPerBlo
 #ifdef TIMING
 			cudaEventRecord(startStep,myStream);
 			cudaStreamSynchronize(myStream);
-			//cudaStreamWaitEvent(myStream, startStep, 0);
 #endif // TIMING
 			adjustedSize /= 2;
 			if (adjustedSize % 2 != 0 && adjustedSize > 1) {
