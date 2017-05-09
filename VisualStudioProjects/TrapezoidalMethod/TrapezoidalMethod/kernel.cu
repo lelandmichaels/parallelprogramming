@@ -2,6 +2,7 @@
 #include "device_launch_parameters.h"
 #include <iostream>
 #include <math.h>
+#include <omp.h>
 #include <cstdlib>
 
 #define TIMING
@@ -28,7 +29,7 @@ void trap(int a, int n, double h, double* sum) {
 	double x_i;
 	int id = blockDim.x*blockIdx.x + threadIdx.x;
 	int stride = blockDim.x*gridDim.x;
-	for (int i = id+1; i < n; i += stride) {
+	for (int i = id + 1; i < n; i += stride) {
 		x_i = a + i*h;
 		sum[id] += f(x_i);
 	}
@@ -117,9 +118,23 @@ int main(void) {
 	int a = 1;
 	int b = 2;
 	int n = 100;
-	double sum = 0.0;
+	double gpuSum, cpuSum = 0.0;
+	double  h = (b - a) / (double)n;
 	for (int i = 0; i < SAMPLE_SIZE; i++) {
-		cudaError_t trapezoidalLaunch = trapezoidalMethod(a, b, n, &sum, 1, 1);
+#ifdef TIMING
+		cpuStartTime = omp_get_wtime();
+#endif // TIMING
+		cpuSum = (f(a) + f(b)) / 2.0;
+		for (int i = 0; i < n; i++) {
+			cpuSum += f(a + h*i);
+		}
+		cpuSum *= h;
+#ifdef TIMING
+		cpuEndTime = omp_get_wtime();
+		double timeUsed = 1000 * (cpuEndTime - cpuStartTime);
+		avgCPUTime += timeUsed;
+#endif // TIMING
+		cudaError_t trapezoidalLaunch = trapezoidalMethod(a, b, n, &gpuSum, 1, 1);
 		if (trapezoidalLaunch == cudaSuccess) {
 			//printf("%lf\n", sum);
 		}
@@ -128,7 +143,7 @@ int main(void) {
 			printf("Error code: %d\n", trapezoidalLaunch);
 		}
 	}
-	printf("%lf\n", sum);
+	printf("%lf\n", gpuSum);
 #ifdef TIMING
 	printf("%d\t%lf\t%lf\n", n, avgCPUTime / SAMPLE_SIZE, avgGPUTime / SAMPLE_SIZE);
 #endif // TIMING
