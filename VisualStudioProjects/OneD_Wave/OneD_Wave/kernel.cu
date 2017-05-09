@@ -1,8 +1,10 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <omp.h>
 #include <iostream>
 #include <math.h>
-#include <omp.h>
 #include <cstdlib>
 
 #define TIMING
@@ -42,7 +44,7 @@ void writerow(int N, double rawdata[]) {
 		exit(1);
 	}
 	else {
-		for (int i = 0; i<N; i++) {
+		for (int i = 0; i < N; i++) {
 			int val = rawdata[i] * 127 + 127;
 			fprintf(fp, "%d ", val);
 		}
@@ -59,16 +61,38 @@ double f(int x, double* arr1, double* arr0) {
 	return (double)(.01*(arr1[x - 1] - (2 * arr1[x]) + arr1[x + 1]) + 2 * arr1[x] - arr0[x]);
 }
 
+
 __global__
 void wave(int n, double *arr0, double* arr1, double* arr2) {
-	for (int i = 0; i < n; i++) {
+	int id = threadIdx.x + blockDim.x*blockIdx.x;
+	int stride = gridDim.x*blockDim.x;
+	for (int i = id; i < n; i += stride) {
 		arr2[i] = f(i, arr1, arr0);
 	}
 }
 
+__global__
+void initForWave(double startX, double endX, int n, double* arr0, double* arr1, double* arr2) {
+	/*int stride = gridDim.x*blockDim.x;
+	double x;
+	for (int i = threadIdx.x + blockDim.x*blockIdx.x; i < n; i += stride) {
+		x = startX + (double)i*1.0 / (n - 1);
+		if (i == 0 || i == n - 1) {
+			arr0[i] = 0;
+			arr1[i] = 0;
+		}
+		else {
+			arr0[i] = sin(M_PI*x);
+			arr1[i] = sin(M_PI*x);
+		}
+	}*/
+}
+
+
+
 int main(void) {
 	int output = 1;
-
+	cudaDeviceReset();
 	cudaEvent_t start, stop;
 	int N = 100; // 1M elements
 	int steps = 10;
@@ -77,42 +101,34 @@ int main(void) {
 	double *arr0; //= new float[N];
 	double *arr1; //= new float[N];
 	double *arr2; //= new float[N];
-	double *temp;
+	double *temp, *localArr0;
 	cudaEventRecord(start);
-	cudaMallocManaged(&arr0, N * sizeof(double));
-	cudaMallocManaged(&arr1, N * sizeof(double));
-	cudaMallocManaged(&arr2, N * sizeof(double));
-
-	arr1[0] = 0;
-	arr1[N - 1] = 0;
-	arr0[0] = 0;
-	arr0[N - 1] = 0;
-
-	// initialize arr1 and arr2 arrays
-	for (int i = 1; i < N - 2; i++) {
-		arr1[i] = sin(M_PI*i/N);
-		arr0[i] = sin(M_PI*i/N);
-	}
-
+	localArr0 = (double*)malloc(N * sizeof(double));
+	cudaMalloc(&arr0, N * sizeof(double));
+	cudaMalloc(&arr1, N * sizeof(double));
+	cudaMalloc(&arr2, N * sizeof(double));
 	if (output == 1) {
 		writeheader(N, steps);
 	}
 
 	int threadBlockSize = 128;
 	int numThreadBlocks = (N + threadBlockSize - 1) / threadBlockSize;
-
+	cudaDeviceSynchronize();
+	initForWave << <numThreadBlocks, threadBlockSize >> >(0.0, 1.0, N, arr0, arr1, arr2);
+	
 
 	// Run kernel on 1M elements on the CPU
 	for (int i = 0; i < steps; i++) {
-		wave << <numThreadBlocks, threadBlockSize >> >(N, arr0, arr1, arr2);
-
+		wave<<<numThreadBlocks, threadBlockSize>>>(N, arr0, arr1, arr2);
+		cudaDeviceSynchronize();
 		temp = arr0;
 		arr0 = arr1;
 		arr1 = arr2;
 		arr2 = temp;
 
 		if (output == 1) {
-			writerow(N, arr0);
+			cudaMemcpy((void*)localArr0, (void*)arr0, N * sizeof(double), cudaMemcpyDeviceToHost);
+			writerow(N, localArr0);
 		}
 	}
 	cudaEventRecord(stop);
@@ -124,6 +140,7 @@ int main(void) {
 	// Free memory
 	//delete[] x;
 	//delete[] y;
+	free(localArr0);
 	cudaFree(arr0);
 	cudaFree(arr1);
 	cudaFree(arr2);
