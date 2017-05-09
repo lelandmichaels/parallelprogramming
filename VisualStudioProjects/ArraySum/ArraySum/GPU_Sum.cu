@@ -2,9 +2,9 @@
 
 #define NUM_THREADS 8
 #define TIMING
-#define MIN_SIZE 12500
-#define SIZE_INCREMENT 12500
-#define MAX_SIZE 1000000
+#define MIN_SIZE 125000
+#define SIZE_INCREMENT 125000
+#define MAX_SIZE 100000000
 #define SAMPLE_SIZE 50
 
 #ifdef TIMING
