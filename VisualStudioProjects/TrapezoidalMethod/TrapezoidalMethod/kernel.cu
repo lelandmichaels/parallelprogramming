@@ -8,8 +8,8 @@
 #define TIMING
 #define MIN_SIZE 250000
 #define SIZE_INCREMENT 250000
-#define MAX_SIZE 100000000
-#define SAMPLE_SIZE 500
+#define MAX_SIZE 10000000
+#define SAMPLE_SIZE 1
 
 #ifdef TIMING
 double avgCPUTime, avgGPUTime;
@@ -117,36 +117,45 @@ int main(void) {
 #endif // TIMING
 	int a = 1;
 	int b = 2;
-	int n = 100;
 	double gpuSum, cpuSum = 0.0;
-	double  h = (b - a) / (double)n;
-	for (int i = 0; i < SAMPLE_SIZE; i++) {
+	int timesCorrect = 0, timesWrong = 0;
+	for (int n = MIN_SIZE; n <= MAX_SIZE; n += SIZE_INCREMENT) {
+		double  h = (b - a) / (double)n;
+		for (int i = 0; i < SAMPLE_SIZE; i++) {
 #ifdef TIMING
-		cpuStartTime = omp_get_wtime();
+			cpuStartTime = omp_get_wtime();
 #endif // TIMING
-		cpuSum = (f(a) + f(b)) / 2.0;
-		for (int i = 0; i < n; i++) {
-			cpuSum += f(a + h*i);
-		}
-		cpuSum *= h;
+			cpuSum = (f(a) + f(b)) / 2.0;
+			for (int i = 1; i < n; i++) {
+				cpuSum += f(a + h*i);
+			}
+			cpuSum *= h;
 #ifdef TIMING
-		cpuEndTime = omp_get_wtime();
-		double timeUsed = 1000 * (cpuEndTime - cpuStartTime);
-		avgCPUTime += timeUsed;
+			cpuEndTime = omp_get_wtime();
+			double timeUsed = 1000 * (cpuEndTime - cpuStartTime);
+			avgCPUTime += timeUsed;
 #endif // TIMING
-		cudaError_t trapezoidalLaunch = trapezoidalMethod(a, b, n, &gpuSum, 1, 1);
-		if (trapezoidalLaunch == cudaSuccess) {
-			//printf("%lf\n", sum);
+			cudaError_t trapezoidalLaunch = trapezoidalMethod(a, b, n, &gpuSum, 10000, 32);
+			if (trapezoidalLaunch == cudaSuccess) {
+				//printf("%lf\n", sum);
+				if (abs(gpuSum - cpuSum) < 1.0 / n) {
+					timesCorrect++;
+				}
+				else {
+					timesWrong++;
+				}
+			}
+			else {
+				printf("There was an error runnning the operation.\n");
+				printf("Error code: %d\n", trapezoidalLaunch);
+			}
 		}
-		else {
-			printf("There was an error runnning the operation.\n");
-			printf("Error code: %d\n", trapezoidalLaunch);
-		}
+		//printf("CPU:%lf\tGPU:%lf\n", cpuSum, gpuSum);
+#ifdef TIMING
+		printf("%d\t%lf\t%lf\n", n, avgCPUTime / SAMPLE_SIZE, avgGPUTime / SAMPLE_SIZE);
+#endif // TIMING
 	}
-	printf("%lf\n", gpuSum);
-#ifdef TIMING
-	printf("%d\t%lf\t%lf\n", n, avgCPUTime / SAMPLE_SIZE, avgGPUTime / SAMPLE_SIZE);
-#endif // TIMING
+	printf("GPU Implementation was correct %d times and incorrect %d times.\n", timesCorrect, timesWrong);
 	return 0;
 }
 

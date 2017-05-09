@@ -6,10 +6,10 @@
 
 #define NUM_THREADS 8
 #define TIMING
-#define MIN_SIZE 250000
+#define MIN_SIZE 100000000
 #define SIZE_INCREMENT 250000
 #define MAX_SIZE 100000000
-#define SAMPLE_SIZE 50
+#define SAMPLE_SIZE 1
 
 #ifdef TIMING
 double avgCPUTime, avgGPUTime;
