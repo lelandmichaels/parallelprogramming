@@ -19,7 +19,40 @@ double cpuStartTime, cpuEndTime;
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
-// Kernel function to calculate trapizoidal sum
+
+void writeheader(int N, int end) {
+	FILE *fp;
+	fp = fopen("outfile.pgm", "w");
+	if (fp == NULL) {
+		printf("sorry can't open outfile.pgm. Terminating.\n");
+		exit(1);
+	}
+	else {
+		// print a table header
+		fprintf(fp, "%s\n%d %d\n%s\n", "P2", N, end, "255");
+		fclose(fp);
+	}
+}
+
+void writerow(int N, double rawdata[]) {
+	FILE *fp;
+	fp = fopen("outfile.pgm", "a");
+	if (fp == NULL) {
+		printf("sorry can't open outfile.pgm. Terminating.\n");
+		exit(1);
+	}
+	else {
+		for (int i=0; i<N; i++) {
+			int val = rawdata[i]*127+127;
+			fprintf(fp,"%d ",val);
+		}
+		fprintf(fp,"\n");
+		fclose(fp);
+	}
+}
+
+
+
 __host__
 __device__
 double f(int x, double* arr1, double* arr0) {
@@ -60,9 +93,15 @@ int main(void) {
 	  arr1[i] = sin(M_PI*i);
 	  arr0[i] = sin(M_PI*i);
 	}
+
+	if(output ==1){
+	  writeheader(N, steps);
+	}
 	
 	int threadBlockSize = 128;
 	int numThreadBlocks = (N+threadBlockSize-1)/threadBlockSize;
+	
+	
 	// Run kernel on 1M elements on the CPU
 	for(int i = 0; i < steps; i++){
 	  wave<<<numThreadBlocks, threadBlockSize >>>(N, arr0, arr1, arr2);
@@ -71,6 +110,10 @@ int main(void) {
 	  arr0 = arr1;
 	  arr1 = arr2;
 	  arr2 = temp;
+
+	  if(output == 1){
+	    writerow(N, arr0);
+	  }
 	}
 	cudaEventRecord(stop);
 
