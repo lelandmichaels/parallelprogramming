@@ -67,13 +67,17 @@ void wave(int n, double *arr0, double* arr1, double* arr2) {
 	int id = threadIdx.x + blockDim.x*blockIdx.x;
 	int stride = gridDim.x*blockDim.x;
 	for (int i = id; i < n; i += stride) {
-		arr2[i] = f(i, arr1, arr0);
+	  if(i==n || i==0){
+	    arr2{i}=0;
+	  }else{
+	    arr2[i] = f(i, arr1, arr0);
+	  }
 	}
 }
 
 __global__
 void initForWave(double startX, double endX, int n, double* arr0, double* arr1, double* arr2) {
-	/*int stride = gridDim.x*blockDim.x;
+	int stride = gridDim.x*blockDim.x;
 	double x;
 	for (int i = threadIdx.x + blockDim.x*blockIdx.x; i < n; i += stride) {
 		x = startX + (double)i*1.0 / (n - 1);
@@ -85,7 +89,7 @@ void initForWave(double startX, double endX, int n, double* arr0, double* arr1, 
 			arr0[i] = sin(M_PI*x);
 			arr1[i] = sin(M_PI*x);
 		}
-	}*/
+	}
 }
 
 
@@ -115,7 +119,11 @@ int main(void) {
 	int numThreadBlocks = (N + threadBlockSize - 1) / threadBlockSize;
 	cudaDeviceSynchronize();
 	initForWave << <numThreadBlocks, threadBlockSize >> >(0.0, 1.0, N, arr0, arr1, arr2);
-	
+
+	if (output == 1) {
+			cudaMemcpy((void*)localArr0, (void*)arr0, N * sizeof(double), cudaMemcpyDeviceToHost);
+			writerow(N, localArr0);
+		}
 
 	// Run kernel on 1M elements on the CPU
 	for (int i = 0; i < steps; i++) {
@@ -137,9 +145,6 @@ int main(void) {
 	float elapsedTime;
 	cudaEventElapsedTime(&elapsedTime, start, stop);
 
-	// Free memory
-	//delete[] x;
-	//delete[] y;
 	free(localArr0);
 	cudaFree(arr0);
 	cudaFree(arr1);
