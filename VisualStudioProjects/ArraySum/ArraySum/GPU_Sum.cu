@@ -1,11 +1,11 @@
 #include "GPU_Sum.h"
 
 #define NUM_THREADS 8
-#define TIMINGNo
-#define MIN_SIZE 1000000
-#define SIZE_INCREMENT 250000
+#define TIMING
+#define MIN_SIZE 12500
+#define SIZE_INCREMENT 12500
 #define MAX_SIZE 1000000
-#define SAMPLE_SIZE 1
+#define SAMPLE_SIZE 50
 
 #ifdef TIMING
 double avgCPUTime, avgGPUTime;
@@ -54,6 +54,7 @@ int main()
 reduction(+:avgGPUTime,avgCPUTime,timesCorrect,timesWrong) \
 private(cpuStartTime,cpuEndTime)
 		for (int sample = 0; sample < SAMPLE_SIZE; sample++) {
+			sum = 0;
 #ifdef TIMING
 			cpuStartTime = omp_get_wtime();
 #endif // TIMING
@@ -88,7 +89,7 @@ private(cpuStartTime,cpuEndTime)
 			}
 		}
 #ifdef TIMING
-		printf("%d\t%lf\t%lf\nCPU:%ld\tGPU:%ld\n", arraySize, avgCPUTime / SAMPLE_SIZE, avgGPUTime / SAMPLE_SIZE, sum, cudaSum);
+		printf("%d\t%lf\t%lf\n", arraySize, avgCPUTime / SAMPLE_SIZE, avgGPUTime / SAMPLE_SIZE);
 #endif // TIMING
 	}
 	printf("GPU Implementation was correct %d times and incorrect %d times.\n", timesCorrect, timesWrong);
