@@ -7,6 +7,11 @@
 #define MAX_SIZE 100000000
 #define SAMPLE_SIZE 50
 
+#define BLOCKS_MIN 1
+#define BLOCKS_INCREMENT 1
+#define BLOCKS_MAX 256
+
+
 #ifdef TIMING
 double avgCPUTime, avgGPUTime;
 double cpuStartTime, cpuEndTime;
@@ -40,56 +45,65 @@ int main()
 		a[i] = i;// rand();
 	}
 	int timesCorrect = 0, timesWrong = 0;
-	printf("Size\tAvgCPUTime\tAvgGPUTime\tSamples:%d\n", SAMPLE_SIZE);
+	printf("Size");
+	for (int blocks = BLOCKS_MIN; blocks < BLOCKS_MAX; blocks += BLOCKS_INCREMENT) {
+		printf("\t%d",blocks);
+	}
+	printf("\n");
 	for (int arraySize = MIN_SIZE; arraySize <= MAX_SIZE; arraySize *= SIZE_INCREMENT) {
+		printf("%ld", arraySize);
+		for (int blocks = BLOCKS_MIN; blocks < BLOCKS_MAX; blocks += BLOCKS_INCREMENT) {
 #ifdef TIMING
-		avgCPUTime = 0;
-		avgGPUTime = 0;
+			avgCPUTime = 0;
+			avgGPUTime = 0;
 #endif // TIMING
-		long long sum = 0, cudaSum;
+			long long sum = 0, cudaSum;
 #pragma omp parallel for num_threads(NUM_THREADS) \
 reduction(+:avgGPUTime,avgCPUTime,timesCorrect,timesWrong) \
 private(cpuStartTime,cpuEndTime)
-		for (int sample = 0; sample < SAMPLE_SIZE; sample++) {
-			sum = 0;
+			for (int sample = 0; sample < SAMPLE_SIZE; sample++) {
+				sum = 0;
 #ifdef TIMING
-			cpuStartTime = omp_get_wtime();
+				cpuStartTime = omp_get_wtime();
 #endif // TIMING
-			for (int i = 0; i < arraySize; i++) {
-				sum += a[i];
+				/*for (int i = 0; i < arraySize; i++) {
+					sum += a[i];
+				}*/
+#ifdef TIMING
+				cpuEndTime = omp_get_wtime();
+				double timeUsed = 1000 * (cpuEndTime - cpuStartTime);
+				avgCPUTime += timeUsed;
+#endif // TIMING
+				// Add vectors in parallel.
+				cudaError_t cudaStatus = sumArray(a, arraySize, &cudaSum, blocks);
+				if (cudaStatus != cudaSuccess) {
+					fprintf(stderr, "CUDA Sum Array failed!");
+					return 1;
+				}
+
+				/*if (cudaSum == sum) {
+					timesCorrect++;
+				}
+				else {
+					timesWrong++;
+				}*/
+
+				// cudaDeviceReset must be called before exiting in order for profiling and
+				// tracing tools such as Nsight and Visual Profiler to show complete traces.
+				cudaStatus = cudaDeviceReset();
+				if (cudaStatus != cudaSuccess) {
+					fprintf(stderr, "cudaDeviceReset failed!");
+					return 1;
+				}
 			}
 #ifdef TIMING
-			cpuEndTime = omp_get_wtime();
-			double timeUsed = 1000 * (cpuEndTime - cpuStartTime);
-			avgCPUTime += timeUsed;
-#endif // TIMING
-			// Add vectors in parallel.
-			cudaError_t cudaStatus = sumArray(a, arraySize, &cudaSum, 256);
-			if (cudaStatus != cudaSuccess) {
-				fprintf(stderr, "CUDA Sum Array failed!");
-				return 1;
-			}
-
-			if (cudaSum == sum) {
-				timesCorrect++;
-			}
-			else {
-				timesWrong++;
-			}
-
-			// cudaDeviceReset must be called before exiting in order for profiling and
-			// tracing tools such as Nsight and Visual Profiler to show complete traces.
-			cudaStatus = cudaDeviceReset();
-			if (cudaStatus != cudaSuccess) {
-				fprintf(stderr, "cudaDeviceReset failed!");
-				return 1;
-			}
+			printf("\t%lf", avgGPUTime / SAMPLE_SIZE);
+			avgGPUTime = 0;
 		}
-#ifdef TIMING
-		printf("%d\t%lf\t%lf\n", arraySize, avgCPUTime / SAMPLE_SIZE, avgGPUTime / SAMPLE_SIZE);
 #endif // TIMING
+		printf("\n");
 	}
-	printf("GPU Implementation was correct %d times and incorrect %d times.\n", timesCorrect, timesWrong);
+	//printf("GPU Implementation was correct %d times and incorrect %d times.\n", timesCorrect, timesWrong);
 	return 0;
 }
 
