@@ -25,8 +25,8 @@ double cpuStartTime, cpuEndTime;
 void toPGM(int n, int numb, double* arr) {
 
 	double max = 0;
-	for (int i = 0; i < sz; i++) {
-		for (int j = 0; j < sz; j++) {
+	for (int i = 0; i < n; i++) {
+		for (int j = 0; j < n; j++) {
 			if (fabs(arr[i*n + j]) > max) {
 				max = fabs(arr[i*n + j]);
 			}
@@ -42,10 +42,10 @@ void toPGM(int n, int numb, double* arr) {
 	printf("%s", name);
 
 	fp = fopen(name, "w");
-	fprintf(fp, "%s\n%d %d\n%s\n", "P2", sz, sz, "255");
+	fprintf(fp, "%s\n%d %d\n%s\n", "P2", n, n, "255");
 
-	for (int i = 0; i < sz; i++) {
-		for (int j = 0; j < sz; j++) {
+	for (int i = 0; i < n; i++) {
+		for (int j = 0; j < n; j++) {
 			fprintf(fp, "%d ", (int)((arr[i*n + j]) / max * 127) + 127);
 		}
 		fprintf(fp, "\n");
