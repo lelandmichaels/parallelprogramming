@@ -2,18 +2,18 @@
 
 #define NUM_THREADS 1
 #define TIMING
-#define MIN_SIZE 1250000
+#define MIN_SIZE 12500
 #define SIZE_INCREMENT 2
-#define MAX_SIZE 100000000
-#define SAMPLE_SIZE 5
+#define MAX_SIZE 10000000
+#define SAMPLE_SIZE 50
 
 #define BLOCKS_MIN 1
-#define BLOCKS_INCREMENT 1
-#define BLOCKS_MAX 512
+#define BLOCKS_INCREMENT 2
+#define BLOCKS_MAX 128
 
 
 #ifdef TIMING
-double avgCPUTime, avgGPUTime;
+double avgCPUTimeMS, avgGPUTimeMS;
 double cpuStartTime, cpuEndTime;
 #endif // TIMING
 
@@ -45,50 +45,41 @@ int main()
 	for (int i = 0; i < MAX_SIZE; i++) {
 		a[i] = i;// rand();
 	}
-	int timesCorrect = 0, timesWrong = 0;
-	printf("Size");
-	for (int blocks = BLOCKS_MIN; blocks <= BLOCKS_MAX; blocks += BLOCKS_INCREMENT) {
+	printf("Size\tCPU");
+	for (int blocks = BLOCKS_MIN; blocks <= BLOCKS_MAX; blocks *= BLOCKS_INCREMENT) {
 		printf("\t%d", blocks);
 	}
 	printf("\n");
 	for (int arraySize = MIN_SIZE; arraySize <= MAX_SIZE; arraySize *= SIZE_INCREMENT) {
 		printf("%ld", arraySize);
-		for (int blocks = BLOCKS_MIN; blocks <= BLOCKS_MAX; blocks += BLOCKS_INCREMENT) {
 #ifdef TIMING
-			avgCPUTime = 0;
-			avgGPUTime = 0;
+		avgCPUTimeMS = 0;
+		cpuStartTime = omp_get_wtime();
 #endif // TIMING
-			long long sum = 0, cudaSum;
-#pragma omp parallel for num_threads(NUM_THREADS) \
-reduction(+:avgGPUTime,avgCPUTime,timesCorrect,timesWrong) \
-private(cpuStartTime,cpuEndTime)
+		for (int sample = 0; sample < SAMPLE_SIZE; sample++) {
+			long long sum = 0;
+#pragma omp parallel num_threads(1)
+			for (int i = 0; i < arraySize; i++) {
+				sum += a[i];
+			}
+		}
+#ifdef TIMING
+		cpuEndTime = omp_get_wtime();
+		double timeUsedS = (cpuEndTime - cpuStartTime);
+		avgCPUTimeMS += timeUsedS * 1000.0;
+		printf("\t%lf", avgCPUTimeMS);// / SAMPLE_SIZE);
+#endif // TIMING
+		for (int blocks = BLOCKS_MIN; blocks <= BLOCKS_MAX; blocks *= BLOCKS_INCREMENT) {
+#ifdef TIMING
+			avgGPUTimeMS = 0;
+#endif // TIMING
+			long long cudaSum;
 			for (int sample = 0; sample < SAMPLE_SIZE; sample++) {
-				//				sum = 0;
-				//#ifdef TIMING
-				//				cpuStartTime = omp_get_wtime();
-				//#endif // TIMING
-				//				/*for (int i = 0; i < arraySize; i++) {
-				//					sum += a[i];
-				//				}*/
-				//#ifdef TIMING
-				//				cpuEndTime = omp_get_wtime();
-				//				double timeUsed = 1000 * (cpuEndTime - cpuStartTime);
-				//				avgCPUTime += timeUsed;
-				//#endif // TIMING
-								// Add vectors in parallel.
 				cudaError_t cudaStatus = sumArray(a, arraySize, &cudaSum, blocks, 32, false, true);
 				if (cudaStatus != cudaSuccess) {
 					fprintf(stderr, "CUDA Sum Array failed!");
 					return 1;
 				}
-
-				/*if (cudaSum == sum) {
-					timesCorrect++;
-				}
-				else {
-					timesWrong++;
-				}*/
-
 				// cudaDeviceReset must be called before exiting in order for profiling and
 				// tracing tools such as Nsight and Visual Profiler to show complete traces.
 				cudaStatus = cudaDeviceReset();
@@ -98,10 +89,10 @@ private(cpuStartTime,cpuEndTime)
 				}
 			}
 #ifdef TIMING
-			printf("\t%lf", avgGPUTime / SAMPLE_SIZE);
-			avgGPUTime = 0;
-		}
+			printf("\t%lf", avgGPUTimeMS / SAMPLE_SIZE);
+			avgGPUTimeMS = 0;
 #endif // TIMING
+		}
 		printf("\n");
 	}
 	//printf("GPU Implementation was correct %d times and incorrect %d times.\n", timesCorrect, timesWrong);
@@ -113,7 +104,7 @@ template<typename Type>
 cudaError_t sumArray(Type *arr, int size, Type *out, int blockCount, int blockSize, bool arrayOnGPU, bool createNewStream) {
 	cudaStream_t myStream = (cudaStream_t)(0);
 	if (createNewStream) {
-		cudaStreamCreateWithFlags(&myStream,cudaStreamDefault);
+		cudaStreamCreateWithFlags(&myStream, cudaStreamDefault);
 	}
 #ifdef TIMING
 	double totalGpuTimeUsed = 0;
@@ -184,7 +175,7 @@ cudaError_t sumArray(Type *arr, int size, Type *out, int blockCount, int blockSi
 			}
 		}
 #ifdef TIMING
-		avgGPUTime += totalGpuTimeUsed;
+		avgGPUTimeMS += totalGpuTimeUsed;
 #endif // TIMING
 		if (cudaStatus == cudaSuccess) {
 			cudaMemcpyAsync(out, gpuArray, sizeof(Type), cudaMemcpyDeviceToHost, myStream);
