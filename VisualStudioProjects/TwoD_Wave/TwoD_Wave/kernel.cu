@@ -109,7 +109,7 @@ int main(void) {
 	int output = 1;
 	cudaDeviceReset();
 	cudaEvent_t start, stop;
-	int n = 500;
+	int n = 1000;
 	int N = n*n; // 1M elements
 	int steps = 1000;
 	cudaEventCreate(&start);
@@ -127,7 +127,7 @@ int main(void) {
 	writeheader(N, steps);
 	}*/
 
-	int threadBlockSize = 128;
+	int threadBlockSize = 1024;
 	int numThreadBlocks = (n + threadBlockSize - 1) / threadBlockSize;
 	cudaDeviceSynchronize();
 	initForWave << <numThreadBlocks, threadBlockSize >> >(0.0, 1.0, n, arr0, arr1, arr2);
@@ -148,7 +148,7 @@ int main(void) {
 
 		if (output == 1 && i%50 == 0 ) {
 			cudaMemcpy((void*)localArr0, (void*)arr0, N * sizeof(double), cudaMemcpyDeviceToHost);
-			toPGM(n, i/50, localArr0);
+			toPGM(n, (i/50)+1, localArr0);
 		}
 	}
 	cudaEventRecord(stop);
