@@ -93,13 +93,13 @@ void wave(int n, double *arr0, double *arr1, double *arr2) {
 
 __global__
 void initForWave(double startX, double endX, int n, double* arr0, double* arr1, double* arr2) {
-	for (int i = 0; i < n; i++) {
-		for (int j = 0; j < n; j++) {
-			arr2[(i*n) + j] = initialCondition(((double)j) / (n - 1), ((double)i) / (n - 1));
-			arr0[(i*n) + j] = arr0[(i*n) + j];
-			printf("%f ", arr0[(i*n) + j]);
+	for (int i = 1; i < n-1; i++) {
+		for (int j = 1; j < n-1; j++) {
+			arr1[(i*n) + j] = initialCondition(((double)j) / (n - 1), ((double)i) / (n - 1));
+			arr1[(i*n) + j] = arr0[(i*n) + j];
+			//printf("%f ", arr0[(i*n) + j]);
 		}
-		printf("\n");
+		//printf("\n");
 	}
 }
 
