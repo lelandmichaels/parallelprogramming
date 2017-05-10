@@ -79,14 +79,14 @@ __global__
 void wave(int n, double *arr0, double *arr1, double *arr2) {
 	int id = threadIdx.x + blockDim.x*blockIdx.x;
 	int stride = gridDim.x*blockDim.x;
-	for (int i = 0; i < n; i ++) {
-		for (int j = 0; j < n; j ++) {
-			if (i == n - 1 || i == 0 || j == 0 || j == n - 1) {
+	for (int i = id+1; i < n-1; i += stride) {
+		for (int j = 1; j < n-1; j ++) {
+			/*if (i == n - 1 || i == 0 || j == 0 || j == n - 1) {
 				arr2[(i*n) + j] = 0;
 			}
-			else {
+			else {*/
 				arr2[(i*n) + j] = f(j, i, n, arr1, arr0);
-			}
+			//}
 		}
 	}
 }
@@ -109,9 +109,9 @@ int main(void) {
 	int output = 1;
 	cudaDeviceReset();
 	cudaEvent_t start, stop;
-	int n = 1000;
+	int n = 100;
 	int N = n*n; // 1M elements
-	int steps = 1000;
+	int steps = 500;
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
 	double *arr0; //= new float[N];
@@ -127,7 +127,7 @@ int main(void) {
 	writeheader(N, steps);
 	}*/
 
-	int threadBlockSize = 1024;
+	int threadBlockSize = 256;
 	int numThreadBlocks = (n + threadBlockSize - 1) / threadBlockSize;
 	cudaDeviceSynchronize();
 	initForWave << <numThreadBlocks, threadBlockSize >> >(0.0, 1.0, n, arr0, arr1, arr2);
