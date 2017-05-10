@@ -109,7 +109,7 @@ int main(void) {
 	int output = 1;
 	cudaDeviceReset();
 	cudaEvent_t start, stop;
-	int n = 100;
+	int n = 10;
 	int N = n*n; // 1M elements
 	int steps = 10;
 	cudaEventCreate(&start);
