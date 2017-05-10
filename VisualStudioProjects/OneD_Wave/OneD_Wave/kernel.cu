@@ -98,8 +98,8 @@ int main(void) {
 	int output = 1;
 	cudaDeviceReset();
 	cudaEvent_t start, stop;
-	int N = 100; // 1M elements
-	int steps = 10;
+	int N = 10000; // 1M elements
+	int steps = 1000;
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
 	double *arr0; //= new float[N];

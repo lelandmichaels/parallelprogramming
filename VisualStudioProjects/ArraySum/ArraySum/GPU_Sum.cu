@@ -2,8 +2,8 @@
 
 #define NUM_THREADS 1
 #define TIMING
-#define MIN_SIZE 1250000
-#define SIZE_INCREMENT 1250000
+#define MIN_SIZE 125000
+#define SIZE_INCREMENT 2
 #define MAX_SIZE 100000000
 #define SAMPLE_SIZE 50
 
@@ -41,7 +41,7 @@ int main()
 	}
 	int timesCorrect = 0, timesWrong = 0;
 	printf("Size\tAvgCPUTime\tAvgGPUTime\tSamples:%d\n", SAMPLE_SIZE);
-	for (int arraySize = MIN_SIZE; arraySize <= MAX_SIZE; arraySize += SIZE_INCREMENT) {
+	for (int arraySize = MIN_SIZE; arraySize <= MAX_SIZE; arraySize *= SIZE_INCREMENT) {
 #ifdef TIMING
 		avgCPUTime = 0;
 		avgGPUTime = 0;

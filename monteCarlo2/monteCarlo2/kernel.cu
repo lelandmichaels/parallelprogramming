@@ -7,7 +7,7 @@
 #include <stdio.h>
 
 #define TIMING
-#define N 5000
+#define N 100000
 
 
 __global__ void monteCarlo(unsigned  int n, unsigned int* inCirc_d, curandState_t* states, unsigned int seed)
