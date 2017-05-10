@@ -154,7 +154,7 @@ int main(void) {
 	float elapsedTime;
 	cudaEventElapsedTime(&elapsedTime, start, stop);
 
-	std::cout << maxError << "\nTime used (ms): " << elapsedTime << std::endl;
+	//std::cout << maxError << "\nTime used (ms): " << elapsedTime << std::endl;
 	
 	free(localArr0);
 	cudaFree(arr0);
