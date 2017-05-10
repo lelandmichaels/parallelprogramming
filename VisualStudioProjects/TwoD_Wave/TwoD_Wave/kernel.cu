@@ -27,15 +27,15 @@ void toPGM(int n, int numb, double* arr) {
 	double max = 0;
 	for (int i = 0; i < n; i++) {
 		for (int j = 0; j < n; j++) {
-			if (fabs(arr[(i*n) + j]) > max) {
-				max = fabs(arr[(i*n) + j]);
+		  if (fabs(arr[(i*n) + j]) > max) {
+		    max = fabs(arr[(i*n) + j]);
 			}
 		}
 	}
 
 	FILE *fp;
 
-	char name[13];
+	char name[14];
 
 	sprintf(name, "output%03d.pgm", numb);
 
@@ -46,7 +46,7 @@ void toPGM(int n, int numb, double* arr) {
 
 	for (int i = 0; i < n; i++) {
 		for (int j = 0; j < n; j++) {
-			fprintf(fp, "%d ", (int)((arr[(i*n) + j]) / max * 127) + 127);
+		  fprintf(fp, "%d ", (int)((arr[(i*n) + j]) / max * 127) + 127);
 		}
 		fprintf(fp, "\n");
 	}
@@ -79,8 +79,8 @@ __global__
 void wave(int n, double *arr0, double *arr1, double *arr2) {
 	int id = threadIdx.x + blockDim.x*blockIdx.x;
 	int stride = gridDim.x*blockDim.x;
-	for (int i = 0; i < n; i++) {
-		for (int j = 0; j < n; j++) {
+	for (int i = 0; i < n; i ++) {
+		for (int j = 0; j < n; j ++) {
 			if (i == n - 1 || i == 0 || j == 0 || j == n - 1) {
 				arr2[(i*n) + j] = 0;
 			}
@@ -93,8 +93,8 @@ void wave(int n, double *arr0, double *arr1, double *arr2) {
 
 __global__
 void initForWave(double startX, double endX, int n, double* arr0, double* arr1, double* arr2) {
-	for (int i = 1; i < n - 1; i++) {
-		for (int j = 1; j < n - 1; j++) {
+	for (int i = 1; i < n-1; i++) {
+		for (int j = 1; j < n-1; j++) {
 			arr0[(i*n) + j] = initialCondition(((double)j) / (n - 1), ((double)i) / (n - 1));
 			arr1[(i*n) + j] = arr0[(i*n) + j];
 			//printf("%f ", arr0[(i*n) + j]);
