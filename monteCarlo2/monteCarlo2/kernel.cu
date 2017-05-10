@@ -1,16 +1,19 @@
 
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
+#include "GPU_Sum.h"
 #include <curand_kernel.h>
 #include <curand.h>
 #include <stdlib.h>
 #include <stdio.h>
 
 #define TIMING
+<<<<<<< HEAD
 #define N 100000
+=======
+>>>>>>> origin/master
 
-
-__global__ void monteCarlo(unsigned  int n, unsigned int* inCirc_d, curandState_t* states, unsigned int seed)
+/*__global__ void monteCarlo(unsigned  int n, unsigned int* inCirc_d, curandState_t* states, unsigned int seed)
 {
 	unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
 
@@ -29,11 +32,35 @@ __global__ void monteCarlo(unsigned  int n, unsigned int* inCirc_d, curandState_
 		else inCirc_d = 0;
 
 	}
+}*/
+
+__global__ void monteCarlo(unsigned  int n, unsigned int* inCirc_d, curandState_t* states, unsigned int seed)
+{
+	unsigned int index = blockIdx.x * blockDim.x + threadIdx.x;
+	unsigned int stride = blockDim.x*gridDim.x;
+	
+
+	for(unsigned int i = index; i < n; i += stride) {
+
+		double x, y;
+
+		curand_init(seed, i, 0, &states[i]);
+		//printf("%d\n", index);
+		x = curand_uniform_double(&states[i]);
+		y = curand_uniform_double(&states[i]);
+
+		//printf("%.4f %.4f\n", x, y);
+
+		if ((x*x + y*y) <= 1.0) inCirc_d[index] = 1;
+		else inCirc_d = 0;
+
+	}
 }
 
 //Used to check if there are any errors launching the kernel
 void CUDAErrorCheck()
-{
+{	
+	
 	cudaError_t error = cudaGetLastError();
 	if (error != cudaSuccess)
 	{
@@ -47,21 +74,22 @@ int main()
 	/*
 	creates cuda rand states and mallocs space for them, each state is thread safe
 	*/
-
-
+	
+	int N = 1000000;
 	int blockSize = 512;
 	int numBlocks = (N + blockSize - 1) / blockSize;
+	bool onGpu = false;
 
 	curandState_t* states;
-	cudaMalloc((void**)&states, blockSize*numBlocks * sizeof(curandState_t));
+	cudaMalloc((void**)&states, N * sizeof(curandState_t));
 
 	unsigned int total = 0;
 	unsigned int* inCirc_d;
-	unsigned int* inCirc = (unsigned int*)malloc(blockSize*numBlocks * sizeof(unsigned int));
+	unsigned int* inCirc = (unsigned int*)malloc(N * sizeof(unsigned int));
 
 
-	cudaMalloc((void**)&inCirc_d, blockSize*numBlocks * sizeof(int));
-	cudaMemset(inCirc_d, 0, blockSize*numBlocks * sizeof(int));
+	cudaMalloc((void**)&inCirc_d, N * sizeof(unsigned int));
+	cudaMemset(inCirc_d, 0, N * sizeof(unsigned int));
 	//CUDAErrorCheck();
 	double cpu_estimate;
 
@@ -70,11 +98,15 @@ int main()
 	cudaDeviceSynchronize();
 	//CUDAErrorCheck();
 
-	cudaMemcpy(inCirc, inCirc_d, blockSize*numBlocks * sizeof(int), cudaMemcpyDeviceToHost);
+	cudaMemcpy(inCirc, inCirc_d, N * sizeof(int), cudaMemcpyDeviceToHost);
 	//CUDAErrorCheck();
+	cudaDeviceSynchronize();
 
+	//sumArray(inCirc, N, &total, numBlocks, blockSize, onGpu);
+	
 	for (unsigned int i = 0; i < N; i++) {
 		total += inCirc[i];
+		//printf("i = %d and count = %d\n",i,inCirc[i]);
 	}
 
 
@@ -88,3 +120,4 @@ int main()
 
 	return 0;
 }
+

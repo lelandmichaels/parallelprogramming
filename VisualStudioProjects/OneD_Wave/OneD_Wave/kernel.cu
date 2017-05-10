@@ -57,13 +57,13 @@ void writerow(int N, double rawdata[]) {
 
 __host__
 __device__
-double f(int x, double* arr1, double* arr0) {
+double f(int x, double *arr1, double *arr0) {
 	return (double)(.01*(arr1[x - 1] - (2 * arr1[x]) + arr1[x + 1]) + 2 * arr1[x] - arr0[x]);
 }
 
 
 __global__
-void wave(int n, double *arr0, double* arr1, double* arr2) {
+void wave(int n, double *arr0, double *arr1, double *arr2) {
 	int id = threadIdx.x + blockDim.x*blockIdx.x;
 	int stride = gridDim.x*blockDim.x;
 	for (int i = id; i < n; i += stride) {
@@ -99,7 +99,11 @@ int main(void) {
 	cudaDeviceReset();
 	cudaEvent_t start, stop;
 	int N = 10000; // 1M elements
+<<<<<<< HEAD
 	int steps = 1000;
+=======
+	int steps = 10;
+>>>>>>> origin/master
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
 	double *arr0; //= new float[N];

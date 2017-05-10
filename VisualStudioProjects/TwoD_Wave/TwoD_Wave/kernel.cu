@@ -27,15 +27,15 @@ void toPGM(int n, int numb, double* arr) {
 	double max = 0;
 	for (int i = 0; i < n; i++) {
 		for (int j = 0; j < n; j++) {
-			if (fabs(arr[i*n + j]) > max) {
-				max = fabs(arr[i*n + j]);
+		  if (fabs(arr[(i*n) + j]) > max) {
+		    max = fabs(arr[(i*n) + j]);
 			}
 		}
 	}
 
 	FILE *fp;
 
-	char name[13];
+	char name[14];
 
 	sprintf(name, "output%03d.pgm", numb);
 
@@ -46,7 +46,7 @@ void toPGM(int n, int numb, double* arr) {
 
 	for (int i = 0; i < n; i++) {
 		for (int j = 0; j < n; j++) {
-			fprintf(fp, "%d ", (int)((arr[i*n + j]) / max * 127) + 127);
+		  fprintf(fp, "%d ", (int)((arr[(i*n) + j]) / max * 127) + 127);
 		}
 		fprintf(fp, "\n");
 	}
@@ -68,7 +68,7 @@ double initialCondition(double x, double y) {
 
 __host__
 __device__
-double f(int x, int y, int n, double* arr1, double* arr0) {
+double f(int x, int y, int n, double *arr1, double *arr0) {
 	//Blindly trust that his is right...
 	double ans = (.01*(arr1[(x - 1) + (n*(y))] + arr1[(x + 1) + (n*(y))] + arr1[(x)+(n*(y - 1))] + arr1[(x)+(n*(y + 1))] - (4 * arr1[(x)+(n*(y))])) + ((2 * arr1[(x)+(n*(y))]) - arr0[(x)+(n*(y))]));
 	return ans;
@@ -76,11 +76,11 @@ double f(int x, int y, int n, double* arr1, double* arr0) {
 
 
 __global__
-void wave(int n, double *arr0, double* arr1, double* arr2) {
+void wave(int n, double *arr0, double *arr1, double *arr2) {
 	int id = threadIdx.x + blockDim.x*blockIdx.x;
 	int stride = gridDim.x*blockDim.x;
-	for (int i = id; i < n; i += stride) {
-		for (int j = id; j < n; j += stride) {
+	for (int i = 0; i < n; i ++) {
+		for (int j = 0; j < n; j ++) {
 			if (i == n - 1 || i == 0 || j == 0 || j == n - 1) {
 				arr2[(i*n) + j] = 0;
 			}
@@ -93,13 +93,13 @@ void wave(int n, double *arr0, double* arr1, double* arr2) {
 
 __global__
 void initForWave(double startX, double endX, int n, double* arr0, double* arr1, double* arr2) {
-	for (int i = 0; i < n; i++) {
-		for (int j = 0; j < n; j++) {
-			arr2[(i*n) + j] = initialCondition(((double)i) / (n - 1), ((double)j) / (n - 1));
-			arr0[(i*n) + j] = arr0[(i*n) + j];
-			printf("%f", arr0[(i*n) + j]);
+	for (int i = 1; i < n-1; i++) {
+		for (int j = 1; j < n-1; j++) {
+			arr0[(i*n) + j] = initialCondition(((double)j) / (n - 1), ((double)i) / (n - 1));
+			arr1[(i*n) + j] = arr0[(i*n) + j];
+			//printf("%f ", arr0[(i*n) + j]);
 		}
-		printf("\n");
+		//printf("\n");
 	}
 }
 
@@ -109,9 +109,9 @@ int main(void) {
 	int output = 1;
 	cudaDeviceReset();
 	cudaEvent_t start, stop;
-	int n = 100;
+	int n = 500;
 	int N = n*n; // 1M elements
-	int steps = 10;
+	int steps = 1000;
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
 	double *arr0; //= new float[N];
@@ -128,7 +128,7 @@ int main(void) {
 	}*/
 
 	int threadBlockSize = 128;
-	int numThreadBlocks = (N + threadBlockSize - 1) / threadBlockSize;
+	int numThreadBlocks = (n + threadBlockSize - 1) / threadBlockSize;
 	cudaDeviceSynchronize();
 	initForWave << <numThreadBlocks, threadBlockSize >> >(0.0, 1.0, n, arr0, arr1, arr2);
 
@@ -146,9 +146,9 @@ int main(void) {
 		arr1 = arr2;
 		arr2 = temp;
 
-		if (output == 1) {
+		if (output == 1 && i%50 == 0 ) {
 			cudaMemcpy((void*)localArr0, (void*)arr0, N * sizeof(double), cudaMemcpyDeviceToHost);
-			toPGM(n, i, localArr0);
+			toPGM(n, i/50, localArr0);
 		}
 	}
 	cudaEventRecord(stop);
@@ -164,3 +164,4 @@ int main(void) {
 
 	return 0;
 }
+
