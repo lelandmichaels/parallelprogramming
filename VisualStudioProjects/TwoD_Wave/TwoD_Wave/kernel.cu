@@ -109,9 +109,9 @@ int main(void) {
 	int output = 1;
 	cudaDeviceReset();
 	cudaEvent_t start, stop;
-	int n = 100;
+	int n = 1000;
 	int N = n*n; // 1M elements
-	int steps = 10;
+	int steps = 1000;
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
 	double *arr0; //= new float[N];
@@ -146,9 +146,9 @@ int main(void) {
 		arr1 = arr2;
 		arr2 = temp;
 
-		if (output == 1) {
+		if (output == 1 && i%50 == 0 ) {
 			cudaMemcpy((void*)localArr0, (void*)arr0, N * sizeof(double), cudaMemcpyDeviceToHost);
-			toPGM(n, i, localArr0);
+			toPGM(n, i/50, localArr0);
 		}
 	}
 	cudaEventRecord(stop);
