@@ -71,7 +71,7 @@ int main()
 	creates cuda rand states and mallocs space for them, each state is thread safe
 	*/
 	
-	int N = 100000;
+	int N = 1000000;
 	int blockSize = 512;
 	int numBlocks = (N + blockSize - 1) / blockSize;
 	bool onGpu = false;
@@ -84,8 +84,8 @@ int main()
 	unsigned int* inCirc = (unsigned int*)malloc(N * sizeof(unsigned int));
 
 
-	cudaMalloc((void**)&inCirc_d, N * sizeof(int));
-	cudaMemset(inCirc_d, 0, N * sizeof(int));
+	cudaMalloc((void**)&inCirc_d, N * sizeof(unsigned int));
+	cudaMemset(inCirc_d, 0, N * sizeof(unsigned int));
 	//CUDAErrorCheck();
 	double cpu_estimate;
 
@@ -102,7 +102,7 @@ int main()
 	
 	for (unsigned int i = 0; i < N; i++) {
 		total += inCirc[i];
-		printf("i = %d and count = %d\n",i,inCirc[i]);
+		//printf("i = %d and count = %d\n",i,inCirc[i]);
 	}
 
 
