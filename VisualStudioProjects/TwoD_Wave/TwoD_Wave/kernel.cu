@@ -27,8 +27,8 @@ void toPGM(int n, int numb, double* arr) {
 	double max = 0;
 	for (int i = 0; i < n; i++) {
 		for (int j = 0; j < n; j++) {
-			if (fabs(arr[i*n + j]) > max) {
-				max = fabs(arr[i*n + j]);
+		  if (fabs(arr[(i*n) + j]) > max) {
+		    max = fabs(arr[(i*n) + j]);
 			}
 		}
 	}
@@ -46,7 +46,7 @@ void toPGM(int n, int numb, double* arr) {
 
 	for (int i = 0; i < n; i++) {
 		for (int j = 0; j < n; j++) {
-			fprintf(fp, "%d ", (int)((arr[i*n + j]) / max * 127) + 127);
+		  fprintf(fp, "%d ", (int)((arr[(i*n) + j]) / max * 127) + 127);
 		}
 		fprintf(fp, "\n");
 	}
@@ -68,7 +68,7 @@ double initialCondition(double x, double y) {
 
 __host__
 __device__
-double f(int x, int y, int n, double* arr1, double* arr0) {
+double f(int x, int y, int n, double *arr1, double *arr0) {
 	//Blindly trust that his is right...
 	double ans = (.01*(arr1[(x - 1) + (n*(y))] + arr1[(x + 1) + (n*(y))] + arr1[(x)+(n*(y - 1))] + arr1[(x)+(n*(y + 1))] - (4 * arr1[(x)+(n*(y))])) + ((2 * arr1[(x)+(n*(y))]) - arr0[(x)+(n*(y))]));
 	return ans;
@@ -76,11 +76,11 @@ double f(int x, int y, int n, double* arr1, double* arr0) {
 
 
 __global__
-void wave(int n, double *arr0, double* arr1, double* arr2) {
+void wave(int n, double *arr0, double *arr1, double *arr2) {
 	int id = threadIdx.x + blockDim.x*blockIdx.x;
 	int stride = gridDim.x*blockDim.x;
-	for (int i = id; i < n; i += stride) {
-		for (int j = id; j < n; j += stride) {
+	for (int i = 0; i < n; i ++) {
+		for (int j = 0; j < n; j ++) {
 			if (i == n - 1 || i == 0 || j == 0 || j == n - 1) {
 				arr2[(i*n) + j] = 0;
 			}
@@ -95,9 +95,9 @@ __global__
 void initForWave(double startX, double endX, int n, double* arr0, double* arr1, double* arr2) {
 	for (int i = 0; i < n; i++) {
 		for (int j = 0; j < n; j++) {
-			arr2[(i*n) + j] = initialCondition(((double)i) / (n - 1), ((double)j) / (n - 1));
+			arr2[(i*n) + j] = initialCondition(((double)j) / (n - 1), ((double)i) / (n - 1));
 			arr0[(i*n) + j] = arr0[(i*n) + j];
-			printf("%f", arr0[(i*n) + j]);
+			printf("%f ", arr0[(i*n) + j]);
 		}
 		printf("\n");
 	}
