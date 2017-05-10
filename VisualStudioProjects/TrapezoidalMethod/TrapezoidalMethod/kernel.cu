@@ -6,13 +6,19 @@
 #include <cstdlib>
 
 #define TIMING
-#define MIN_SIZE 250000
-#define SIZE_INCREMENT 250000
-#define MAX_SIZE 10000000
-#define SAMPLE_SIZE 1
+#define NUM_THREADS 1
+#define TIMING
+#define MIN_SIZE 12500
+#define SIZE_INCREMENT 2
+#define MAX_SIZE 100000000
+#define SAMPLE_SIZE 50
+
+#define BLOCKS_MIN 1
+#define BLOCKS_INCREMENT 2
+#define BLOCKS_MAX 128
 
 #ifdef TIMING
-double avgCPUTime, avgGPUTime;
+double avgCPUTimeMS, avgGPUTimeMS;
 double cpuStartTime, cpuEndTime;
 #endif // TIMING
 
@@ -24,102 +30,47 @@ double f(double x) {
 	return x*x;
 }
 
-__global__
-void trap(int a, int n, double h, double* sum) {
-	double x_i;
-	int id = blockDim.x*blockIdx.x + threadIdx.x;
-	int stride = blockDim.x*gridDim.x;
-	for (int i = id + 1; i < n; i += stride) {
-		x_i = a + i*h;
-		sum[id] += f(x_i);
-	}
-}
 
-cudaError_t sumArray(double *arr, int size, double *out, int threadsPerBlock, bool arrayAlreadyOnGPU);
+cudaError_t trapezoidalMethod(double startValue, double endValue, int subdivisions, double *out, int blockCount, int blockSize = 32, bool createNewStream = false);
 
-__global__ void sumKernel(double *arr, int size)
+__global__ void trapKernel(double *arr, int n, double startValue, double h)
 {
-	int i = threadIdx.x + blockDim.x*blockIdx.x;
-	if (i < size) {
-		arr[i] += arr[i + size];
-		arr[i + size] = 0;
+	double x_i;
+	int stride = blockDim.x * gridDim.x;
+	int id = threadIdx.x + blockDim.x*blockIdx.x;
+	double mySum = 0;
+	for (int i = id + 1; i < n; i += stride) {
+		x_i = startValue + i*h;
+		mySum += f(x_i);
+	}
+	arr[id] = mySum;
+}
+
+template<typename Type>
+__global__ void binaryReduction(Type *arr, int size)
+{
+	int id = threadIdx.x + blockDim.x*blockIdx.x;
+	if (id < size) {
+		arr[id] += arr[id + size];
 	}
 }
 
-cudaError_t trapezoidalMethod(double start, double end, int subdivisions, double *out, int blockCount, int blockSize) {
-#ifdef TIMING
-	double totalGpuTimeUsed = 0;
-	float gpuTimeUsed;
-	cudaEvent_t startStep, endStep;
-	cudaEventCreateWithFlags(&startStep, cudaEventDefault);//cudaEventBlockingSync);
-	cudaEventCreateWithFlags(&endStep, cudaEventDefault);// cudaEventBlockingSync);
-#endif // TIMING
-	cudaError_t cudaStatus;
-	// Choose which GPU to run on, change this on a multi-GPU system.
-	cudaStatus = cudaSetDevice(0);
-	if (cudaStatus != cudaSuccess) {
-		fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
-	}
-	else {
-		cudaStream_t myStream;
-		cudaStreamCreateWithFlags(&myStream, cudaStreamNonBlocking);
-#ifdef TIMING
-		cudaEventRecord(startStep, myStream);
-		cudaStreamSynchronize(myStream);
-#endif // TIMING
-		// Launch a kernel on the GPU with one thread for each element.
-		double  h = (end - start) / (double)subdivisions;
-		double *gpuSum, cpuSum;
-		cudaMalloc(&gpuSum, sizeof(double)*blockCount*blockSize);
-		cudaStreamSynchronize(myStream);
-		trap << <blockCount, blockSize, 0, myStream >> > (start, subdivisions, h, gpuSum);
-		cudaStreamSynchronize(myStream);
-		cudaStatus = cudaGetLastError();
-		if (cudaStatus != cudaSuccess) {
-			fprintf(stderr, "Trapezoidal launch failed: %s\n", cudaGetErrorString(cudaStatus));
-		}
-		else {
-			//reduce array to one value now
-			sumArray(gpuSum, blockCount*blockSize, &cpuSum, blockSize, true);
-			if (cudaStatus != cudaSuccess) {
-				fprintf(stderr, "Reduction failed: %s\n", cudaGetErrorString(cudaStatus));
-			}
-			else {
-				// cudaDeviceSynchronize waits for the kernel to finish, and returns
-				// any errors encountered during the launch.
-				cudaStreamSynchronize(myStream);
-				cudaFree(gpuSum);
-				if (cudaStatus != cudaSuccess) {
-					fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching Trapezoidal!\n", cudaStatus);
-				}
-				else {
-					*out = (f(start) + f(end)) / 2.0 + cpuSum;
-					*out *= h;
-				}
-			}
-		}
-#ifdef TIMING
-		cudaEventRecord(endStep, myStream);
-		cudaStreamSynchronize(myStream);
-		cudaEventElapsedTime(&gpuTimeUsed, startStep, endStep);
-		totalGpuTimeUsed += gpuTimeUsed;
-		avgGPUTime += totalGpuTimeUsed;
-#endif // TIMING
-		cudaStreamDestroy(myStream);
-	}
-	return cudaStatus;
-}
 
 int main(void) {
 #ifdef TIMING
-	avgCPUTime = 0;
-	avgGPUTime = 0;
+	avgCPUTimeMS = 0;
+	avgGPUTimeMS = 0;
 #endif // TIMING
 	int a = 1;
 	int b = 2;
 	double gpuSum, cpuSum = 0.0;
 	int timesCorrect = 0, timesWrong = 0;
-	for (int n = MIN_SIZE; n <= MAX_SIZE; n += SIZE_INCREMENT) {
+	printf("Size\tCPU");
+	for (int blocks = BLOCKS_MIN; blocks <= BLOCKS_MAX; blocks *= BLOCKS_INCREMENT) {
+		printf("\t%d", blocks);
+	}
+	printf("\n");
+	for (int n = MIN_SIZE; n <= MAX_SIZE; n *= SIZE_INCREMENT) {
 		double  h = (b - a) / (double)n;
 		for (int i = 0; i < SAMPLE_SIZE; i++) {
 #ifdef TIMING
@@ -133,34 +84,46 @@ int main(void) {
 #ifdef TIMING
 			cpuEndTime = omp_get_wtime();
 			double timeUsed = 1000 * (cpuEndTime - cpuStartTime);
-			avgCPUTime += timeUsed;
+			avgCPUTimeMS += timeUsed;
 #endif // TIMING
-			cudaError_t trapezoidalLaunch = trapezoidalMethod(a, b, n, &gpuSum, 10000, 32);
-			if (trapezoidalLaunch == cudaSuccess) {
-				//printf("%lf\n", sum);
-				if (abs(gpuSum - cpuSum) < 1.0 / n) {
-					timesCorrect++;
+		}
+		printf("%ld\t%lf", n, avgCPUTimeMS / SAMPLE_SIZE);
+		for (int blocks = BLOCKS_MIN; blocks <= BLOCKS_MAX; blocks *= BLOCKS_INCREMENT) {
+#ifdef TIMING
+			avgGPUTimeMS = 0;
+#endif // TIMING
+			for (int sample = 0; sample < SAMPLE_SIZE; sample++) {
+				cudaError_t trapezoidalLaunch = trapezoidalMethod(a, b, n, &gpuSum, blocks);
+				if (trapezoidalLaunch == cudaSuccess) {
+					if (abs(gpuSum - cpuSum) < 1.0 / n) {
+						timesCorrect++;
+					}
+					else {
+						timesWrong++;
+					}
 				}
 				else {
-					timesWrong++;
+					printf("There was an error runnning the operation.\n");
+					printf("Error code: %d\n", trapezoidalLaunch);
 				}
 			}
-			else {
-				printf("There was an error runnning the operation.\n");
-				printf("Error code: %d\n", trapezoidalLaunch);
-			}
-		}
-		//printf("CPU:%lf\tGPU:%lf\n", cpuSum, gpuSum);
 #ifdef TIMING
-		printf("%d\t%lf\t%lf\n", n, avgCPUTime / SAMPLE_SIZE, avgGPUTime / SAMPLE_SIZE);
+			printf("\t%lf", avgGPUTimeMS / SAMPLE_SIZE);
 #endif // TIMING
+		}
+		printf("\n");
 	}
-	printf("GPU Implementation was correct %d times and incorrect %d times.\n", timesCorrect, timesWrong);
+	//printf("GPU Implementation was correct %d times and incorrect %d times.\n", timesCorrect, timesWrong);
 	return 0;
 }
 
 
-cudaError_t sumArray(double *arr, int size, double *out, int threadsPerBlock, bool arrayAlreadyOnGPU) {
+//cudaStatus = cudaStreamSynchronize(myStream);
+cudaError_t trapezoidalMethod(double startValue, double endValue, int subdivisions, double *out, int blockCount, int blockSize, bool createNewStream) {
+	cudaStream_t myStream = (cudaStream_t)(0);
+	if (createNewStream) {
+		cudaStreamCreateWithFlags(&myStream, cudaStreamDefault);
+	}
 #ifdef TIMING
 	double totalGpuTimeUsed = 0;
 	float gpuTimeUsed;
@@ -175,89 +138,65 @@ cudaError_t sumArray(double *arr, int size, double *out, int threadsPerBlock, bo
 		fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
 	}
 	else {
-		cudaStream_t myStream;
-		cudaStreamCreateWithFlags(&myStream, cudaStreamNonBlocking);
-		//adjust size so it is even
-		int adjustedSize = size + size % 2;
-		//determine number of thread blocks required
-		int numThreadBlocks = numThreadBlocks = (adjustedSize + threadsPerBlock - 1) / threadsPerBlock;
-		if (numThreadBlocks > 65535) {
-			double part1, part2;
-			sumArray(arr, size / 2, &part1, threadsPerBlock, arrayAlreadyOnGPU);
-			sumArray(&arr[size / 2], size / 2, &part2, threadsPerBlock, arrayAlreadyOnGPU);
-			cudaStatus = cudaGetLastError();
-			if (cudaStatus == cudaSuccess) {
-				*out = part1 + part2;
-			}
-			return cudaStatus;
-		}
+		int size = blockCount*blockSize;
+		double h = (endValue - startValue) / (double)subdivisions;
+		//create array for sum reduction on gpu
 		double *gpuArray;
-		if (arrayAlreadyOnGPU) {
-			gpuArray = arr;
-		}
-		else {
-			//create array for sum reduction on gpu
-			cudaMalloc((void **)&gpuArray, adjustedSize * sizeof(double));
-			cudaStatus = cudaStreamSynchronize(myStream);
-			cudaMemsetAsync((void*)gpuArray, 0, adjustedSize * sizeof(double), myStream);
-			cudaStatus = cudaStreamSynchronize(myStream);
-			//copy input data to gpu
-			cudaMemcpyAsync(gpuArray, arr, size * sizeof(double), cudaMemcpyHostToDevice, myStream);
-			cudaStatus = cudaStreamSynchronize(myStream);
-		}
+		cudaMalloc((void **)&gpuArray, size * sizeof(double));
+		cudaStatus = cudaStreamSynchronize(myStream);
+		cudaMemsetAsync((void*)gpuArray, 0, size * sizeof(double), myStream);
+		cudaStatus = cudaStreamSynchronize(myStream);
+#ifdef TIMING
+		cudaEventRecord(startStep, myStream);
+#endif // TIMING
+		trapKernel << <blockCount, blockSize, 0, myStream >> > (gpuArray, subdivisions, startValue, h);
+#ifdef TIMING
+		cudaEventRecord(endStep, myStream);
+		cudaStatus = cudaStreamSynchronize(myStream);
+		cudaEventElapsedTime(&gpuTimeUsed, startStep, endStep);
+		totalGpuTimeUsed += gpuTimeUsed;
+#endif // TIMING
 		//keep reducing the problem size by two
-		while (adjustedSize > 1) {
+		while (size > 1) {
+			cudaStatus = cudaStreamSynchronize(myStream);
+			size /= 2;
+			if (size % 2 != 0 && size > 1) {
+				size++;
+			}
 #ifdef TIMING
 			cudaEventRecord(startStep, myStream);
-			cudaStreamSynchronize(myStream);
-			//cudaStreamWaitEvent(myStream, startStep, 0);
+			cudaStatus = cudaEventSynchronize(startStep);
 #endif // TIMING
-			adjustedSize /= 2;
-			if (adjustedSize % 2 != 0 && adjustedSize > 1) {
-				adjustedSize++;
-			}
-			if (adjustedSize < threadsPerBlock) {
-				threadsPerBlock = adjustedSize;
-				if (threadsPerBlock % 32 != 0) {
-					threadsPerBlock += 32 - threadsPerBlock % 32;
-				}
-			}
-			numThreadBlocks = (adjustedSize + threadsPerBlock - 1) / threadsPerBlock;
-			//printf("Adjusted size:%d\tThreadBlocks:%d\tThreadsPerBlock:%d\n", adjustedSize, numThreadBlocks,threadsPerBlock);
 			// Launch a kernel on the GPU with one thread for each pair of elements.
-			sumKernel << <numThreadBlocks, threadsPerBlock, 0, myStream >> > (gpuArray, adjustedSize);
-
+			binaryReduction << <blockCount, blockSize, 0, myStream >> > (gpuArray, size);
+#ifdef TIMING
+			cudaEventRecord(endStep, myStream);
+			cudaStatus = cudaEventSynchronize(endStep);
+			cudaEventElapsedTime(&gpuTimeUsed, startStep, endStep);
+			totalGpuTimeUsed += gpuTimeUsed;
+#endif // TIMING
 			// Check for any errors launching the kernel
 			cudaStatus = cudaGetLastError();
 			if (cudaStatus != cudaSuccess) {
 				fprintf(stderr, "sumArray Kernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
 				break;
 			}
-			else {
-				// cudaDeviceSynchronize waits for the kernel to finish, and returns
-				// any errors encountered during the launch.
-				cudaStreamSynchronize(myStream);
-				if (cudaStatus != cudaSuccess) {
-					fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
-					break;
-				}
-				cudaMemcpyAsync(out, gpuArray, sizeof(long long), cudaMemcpyDeviceToHost, myStream);
+		}
+#ifdef TIMING
+		avgGPUTimeMS += totalGpuTimeUsed;
+#endif // TIMING
+		if (cudaStatus == cudaSuccess) {
+			cudaMemcpyAsync(out, gpuArray, sizeof(double), cudaMemcpyDeviceToHost, myStream);
+			cudaStatus = cudaStreamSynchronize(myStream);
+			if (cudaStatus != cudaSuccess) {
+				fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
 			}
-#ifdef TIMING
-			cudaEventRecord(endStep, myStream);
-			cudaStreamSynchronize(myStream);
-			//cudaStreamWaitEvent(myStream,endStep,0);
-			cudaEventElapsedTime(&gpuTimeUsed, startStep, endStep);
-			totalGpuTimeUsed += gpuTimeUsed;
-#endif // TIMING
+			*out += (f(startValue) + f(endValue)) / 2.0;
+			*out *= h;
 		}
-#ifdef TIMING
-		avgGPUTime += totalGpuTimeUsed;
-#endif // TIMING
+	}
+	if (createNewStream) {
 		cudaStreamDestroy(myStream);
-		if (!arrayAlreadyOnGPU) {
-			cudaFree(gpuArray);
-		}
 	}
 	return cudaStatus;
 }
