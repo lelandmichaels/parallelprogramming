@@ -137,7 +137,7 @@ int main(void) {
 
 	// Run kernel on 1M elements on the CPU
 	for (int i = 0; i < steps; i++) {
-		wave<<<numThreadBlocks, threadBlockSize>>>(N, arr0, arr1, arr2);
+		wave<<<numThreadBlocks, threadBlockSize>>>(n, arr0, arr1, arr2);
 		cudaDeviceSynchronize();
 		temp = arr0;
 		arr0 = arr1;
