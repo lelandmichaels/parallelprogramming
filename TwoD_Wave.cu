@@ -22,36 +22,37 @@ double cpuStartTime, cpuEndTime;
 #define M_PI 3.14159265358979323846
 #endif
 
-void writeheader(int N, int end) {
-	FILE *fp;
-	fp = fopen("outfile.pgm", "w");
-	if (fp == NULL) {
-		printf("sorry can't open outfile.pgm. Terminating.\n");
-		exit(1);
-	}
-	else {
-		// print a table header
-		fprintf(fp, "%s\n%d %d\n%s\n", "P2", N, end, "255");
-		fclose(fp);
-	}
+void toPGM(int n, int numb, double* arr){
+  
+  double max = 0;
+  for(int i = 0; i < sz; i ++){
+    for(int j = 0; j < sz; j ++){
+      if (fabs(arr[i*n+j]) > max){
+	max = fabs(arr[i*n+j]);
+      } 
+    }
+  }
+
+  FILE *fp;
+
+  char name[13];
+
+  sprintf(name, "output%03d.pgm", numb);
+  
+  printf("%s", name);
+
+  fp = fopen(name, "w");
+  fprintf(fp, "%s\n%d %d\n%s\n", "P2", sz, sz, "255");
+  
+  for(int i = 0; i < sz; i ++){
+    for(int j = 0; j < sz; j ++){
+      fprintf(fp,"%d ", (int)((arr[i*n+j])/max*127)+127);
+    }
+    fprintf(fp, "\n");
+  }
+  fclose(fp);
 }
 
-void writerow(int N, double rawdata[]) {
-	FILE *fp;
-	fp = fopen("outfile.pgm", "a");
-	if (fp == NULL) {
-		printf("sorry can't open outfile.pgm. Terminating.\n");
-		exit(1);
-	}
-	else {
-		for (int i = 0; i < N; i++) {
-			int val = rawdata[i] * 127 + 127;
-			fprintf(fp, "%d ", val);
-		}
-		fprintf(fp, "\n");
-		fclose(fp);
-	}
-}
 
 __host__
 __device__
@@ -121,9 +122,9 @@ int main(void) {
 	cudaMalloc(&arr0, N * sizeof(double));
 	cudaMalloc(&arr1, N * sizeof(double));
 	cudaMalloc(&arr2, N * sizeof(double));
-	if (output == 1) {
+	/*if (output == 1) {
 		writeheader(N, steps);
-	}
+		}*/
 
 	int threadBlockSize = 128;
 	int numThreadBlocks = (N + threadBlockSize - 1) / threadBlockSize;
@@ -132,7 +133,7 @@ int main(void) {
 
 	if (output == 1) {
 			cudaMemcpy((void*)localArr0, (void*)arr0, N * sizeof(double), cudaMemcpyDeviceToHost);
-			writerow(N, localArr0);
+			toPGM(n, 0, localArr0);
 		}
 
 	// Run kernel on 1M elements on the CPU
@@ -146,7 +147,7 @@ int main(void) {
 
 		if (output == 1) {
 			cudaMemcpy((void*)localArr0, (void*)arr0, N * sizeof(double), cudaMemcpyDeviceToHost);
-			writerow(N, localArr0);
+			toPGM(n, i, localArr0);
 		}
 	}
 	cudaEventRecord(stop);
