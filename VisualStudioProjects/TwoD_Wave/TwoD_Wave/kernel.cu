@@ -70,7 +70,7 @@ __host__
 __device__
 double f(int x, int y, int n, double* arr1, double* arr0) {
 	//Blindly trust that his is right...
-	double ans = (.01*(arr[(x - 1) + (n*(y))] + arr[(x + 1) + (n*(y))] + arr[(x)+(n*(y - 1))] + arr[(x)+(n*(y + 1))] - (4 * arr[(x)+(n*(y))])) + ((2 * arr[(x)+(n*(y))]) - arr2[(x)+(n*(y))]));
+	double ans = (.01*(arr1[(x - 1) + (n*(y))] + arr1[(x + 1) + (n*(y))] + arr1[(x)+(n*(y - 1))] + arr1[(x)+(n*(y + 1))] - (4 * arr1[(x)+(n*(y))])) + ((2 * arr1[(x)+(n*(y))]) - arr0[(x)+(n*(y))]));
 	return ans;
 }
 
