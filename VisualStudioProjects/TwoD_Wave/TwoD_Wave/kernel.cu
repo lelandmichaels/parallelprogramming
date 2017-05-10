@@ -109,7 +109,7 @@ int main(void) {
 	int output = 1;
 	cudaDeviceReset();
 	cudaEvent_t start, stop;
-	int n = 10;
+	int n = 100;
 	int N = n*n; // 1M elements
 	int steps = 10;
 	cudaEventCreate(&start);
@@ -128,7 +128,7 @@ int main(void) {
 	}*/
 
 	int threadBlockSize = 128;
-	int numThreadBlocks = (N + threadBlockSize - 1) / threadBlockSize;
+	int numThreadBlocks = (n + threadBlockSize - 1) / threadBlockSize;
 	cudaDeviceSynchronize();
 	initForWave << <numThreadBlocks, threadBlockSize >> >(0.0, 1.0, n, arr0, arr1, arr2);
 
