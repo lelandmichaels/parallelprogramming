@@ -67,7 +67,7 @@ void wave(int n, double *arr0, double* arr1, double* arr2) {
 	int id = threadIdx.x + blockDim.x*blockIdx.x;
 	int stride = gridDim.x*blockDim.x;
 	for (int i = id; i < n; i += stride) {
-	  if(i==n || i==0){
+	  if(i==n-1 || i==0){
 	    arr2{i}=0;
 	  }else{
 	    arr2[i] = f(i, arr1, arr0);
