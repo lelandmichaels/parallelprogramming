@@ -110,10 +110,10 @@ int main(void) {
 	int output = 1;
 	cudaDeviceReset();
 	cudaEvent_t start, stop;
-	int n = 500;
+	int n = 1024;
 	int N = n*n; // 1M elements
-	int steps = n*1000;
-	int outputIncrement = steps/500;
+	int steps = n*500;
+	int outputIncrement = steps/1000;
 	cudaEventCreate(&start);
 	cudaEventCreate(&stop);
 	double *arr0; //= new float[N];
