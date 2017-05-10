@@ -1,9 +1,9 @@
 #include "GPU_Sum.h"
 
-#define NUM_THREADS 8
+#define NUM_THREADS 1
 #define TIMING
-#define MIN_SIZE 125000
-#define SIZE_INCREMENT 125000
+#define MIN_SIZE 1250000
+#define SIZE_INCREMENT 1250000
 #define MAX_SIZE 100000000
 #define SAMPLE_SIZE 50
 
@@ -11,9 +11,6 @@
 double avgCPUTime, avgGPUTime;
 double cpuStartTime, cpuEndTime;
 #endif // TIMING
-
-template<typename Type>
-cudaError_t sumArray(Type *arr, int size, Type *out, int blockCount, int threadsPerBlock, bool arrayOnGPU);
 
 template<typename Type>
 __global__ void sumKernel(Type *arr, int size)
@@ -67,7 +64,7 @@ private(cpuStartTime,cpuEndTime)
 			avgCPUTime += timeUsed;
 #endif // TIMING
 			// Add vectors in parallel.
-			cudaError_t cudaStatus = sumArray(a, arraySize, &cudaSum, 1, 256, false);
+			cudaError_t cudaStatus = sumArray(a, arraySize, &cudaSum, 256);
 			if (cudaStatus != cudaSuccess) {
 				fprintf(stderr, "CUDA Sum Array failed!");
 				return 1;
@@ -98,7 +95,7 @@ private(cpuStartTime,cpuEndTime)
 
 
 template<typename Type>
-cudaError_t sumArray(Type *arr, int size, Type *out, int blockCount, int blockSize, bool arrayOnGPU) {
+cudaError_t sumArray(Type *arr, int size, Type *out, int blockCount, int blockSize, bool arrayOnGPU, cudaStream_t myStream) {
 #ifdef TIMING
 	double totalGpuTimeUsed = 0;
 	float gpuTimeUsed;
@@ -113,8 +110,6 @@ cudaError_t sumArray(Type *arr, int size, Type *out, int blockCount, int blockSi
 		fprintf(stderr, "cudaSetDevice failed!  Do you have a CUDA-capable GPU installed?");
 	}
 	else {
-		cudaStream_t myStream;
-		cudaStreamCreateWithFlags(&myStream, cudaStreamNonBlocking);
 		//adjust size so it is even
 		int adjustedSize = size + size % 2;
 		//determine number of thread blocks required
@@ -130,35 +125,44 @@ cudaError_t sumArray(Type *arr, int size, Type *out, int blockCount, int blockSi
 			cudaStatus = cudaStreamSynchronize(myStream);
 			//copy input data to gpu
 			cudaMemcpyAsync(gpuArray, arr, size * sizeof(Type), cudaMemcpyHostToDevice, myStream);
-			cudaStatus = cudaStreamSynchronize(myStream);
+			//cudaStatus = cudaStreamSynchronize(myStream);
 		}
+#ifdef TIMING
+		cudaEventRecord(startStep, myStream);
+#endif // TIMING
 		sumKernel << <blockCount, blockSize, 0, myStream >> > (gpuArray, adjustedSize);
+#ifdef TIMING
+		cudaEventRecord(endStep, myStream);
+		cudaStatus = cudaStreamSynchronize(myStream);
+		cudaEventElapsedTime(&gpuTimeUsed, startStep, endStep);
+		totalGpuTimeUsed += gpuTimeUsed;
+#endif // TIMING
 		adjustedSize = blockCount*blockSize;
 		//keep reducing the problem size by two
 		while (adjustedSize > 1) {
 			cudaStatus = cudaStreamSynchronize(myStream);
-#ifdef TIMING
-			cudaEventRecord(startStep, myStream);
-#endif // TIMING
 			adjustedSize /= 2;
 			if (adjustedSize % 2 != 0 && adjustedSize > 1) {
 				adjustedSize++;
 			}
+#ifdef TIMING
+			cudaEventRecord(startStep, myStream);
+			cudaStatus = cudaEventSynchronize(startStep);
+#endif // TIMING
 			// Launch a kernel on the GPU with one thread for each pair of elements.
 			binaryReduction << <blockCount, blockSize, 0, myStream >> > (gpuArray, adjustedSize);
-
+#ifdef TIMING
+			cudaEventRecord(endStep, myStream);
+			cudaStatus = cudaEventSynchronize(endStep);
+			cudaEventElapsedTime(&gpuTimeUsed, startStep, endStep);
+			totalGpuTimeUsed += gpuTimeUsed;
+#endif // TIMING
 			// Check for any errors launching the kernel
 			cudaStatus = cudaGetLastError();
 			if (cudaStatus != cudaSuccess) {
 				fprintf(stderr, "sumArray Kernel launch failed: %s\n", cudaGetErrorString(cudaStatus));
 				break;
 			}
-#ifdef TIMING
-			cudaEventRecord(endStep, myStream);
-			cudaStatus = cudaStreamSynchronize(myStream);
-			cudaEventElapsedTime(&gpuTimeUsed, startStep, endStep);
-			totalGpuTimeUsed += gpuTimeUsed;
-#endif // TIMING
 		}
 #ifdef TIMING
 		avgGPUTime += totalGpuTimeUsed;
@@ -170,7 +174,6 @@ cudaError_t sumArray(Type *arr, int size, Type *out, int blockCount, int blockSi
 				fprintf(stderr, "cudaDeviceSynchronize returned error code %d after launching addKernel!\n", cudaStatus);
 			}
 		}
-		cudaStreamDestroy(myStream);
 		if (arrayOnGPU) {
 			cudaFree(gpuArray);
 		}

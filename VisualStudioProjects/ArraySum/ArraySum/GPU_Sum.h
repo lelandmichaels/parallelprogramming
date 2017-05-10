@@ -7,7 +7,7 @@
 
 
 template<typename Type>
-cudaError_t sumArray(Type *arr, int size, Type *out, int blockCount, int threadsPerBlock, bool arrayOnGPU);
+cudaError_t sumArray(Type *arr, int size, Type *out, int blockCount, int blockSize=32, bool arrayOnGPU=false,cudaStream_t myStream=0);
 
 template<typename Type>
 __global__ void sumKernel(Type *arr, int size);
