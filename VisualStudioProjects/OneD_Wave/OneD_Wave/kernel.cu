@@ -149,6 +149,8 @@ int main(void) {
 	float elapsedTime;
 	cudaEventElapsedTime(&elapsedTime, start, stop);
 
+	std::cout << "\nTime used (ms): " << elapsedTime << std::endl;
+	
 	free(localArr0);
 	cudaFree(arr0);
 	cudaFree(arr1);

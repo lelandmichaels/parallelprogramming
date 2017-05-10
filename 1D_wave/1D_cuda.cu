@@ -120,7 +120,8 @@ int main(void) {
 	cudaEventSynchronize(stop);
 	float elapsedTime;
 	cudaEventElapsedTime(&elapsedTime, start, stop);
-
+	std::cout << "\nTime used (ms): " << elapsedTime << std::endl;
+	
 	// Free memory
 	//delete[] x;
 	//delete[] y;

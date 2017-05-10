@@ -82,12 +82,7 @@ void wave(int n, double *arr0, double *arr1, double *arr2) {
 	int strideY = gridDim.y*blockDim.y;
 	for (int i = threadIdx.x + blockDim.x*blockIdx.x + 1; i < n - 1; i += strideX) {
 		for (int j = threadIdx.y + blockDim.y*blockIdx.y + 1; j < n - 1; j += strideY) {
-			/*if (i == n - 1 || i == 0 || j == 0 || j == n - 1) {
-				arr2[(i*n) + j] = 0;
-			}
-			else {*/
 			arr2[(i*n) + j] = f(j, i, n, arr1, arr0);
-			//}
 		}
 	}
 }
@@ -159,6 +154,8 @@ int main(void) {
 	float elapsedTime;
 	cudaEventElapsedTime(&elapsedTime, start, stop);
 
+	std::cout << maxError << "\nTime used (ms): " << elapsedTime << std::endl;
+	
 	free(localArr0);
 	cudaFree(arr0);
 	cudaFree(arr1);
